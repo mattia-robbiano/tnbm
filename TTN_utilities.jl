@@ -1,10 +1,60 @@
 module TTN_utilities
 
+export build_random_ttn
 export rename_tensor_indices!
 export print_tensor_vector
 export squared_norm
 
 using ITensors
+
+function build_random_ttn(n_physical_indexes::Int, bond_dimension::Int, layers::Int)
+    # Input validation
+    if layers < 1
+        error("The number of layers must be at least 1.")
+    end
+    
+    # Define physical indices
+    physical_indexes = [Index(2, "site $i") for i in 1:n_physical_indexes]
+    
+    # Initialize variables to store bond indices and tensors for each layer
+    bond_indices = Vector{Vector{Index}}()
+    tensors = Vector{Vector{ITensor}}()
+    
+    # Compute the number of bond indices and construct tensors layer by layer
+    current_physical_indexes = physical_indexes
+    for layer in 1:layers
+        n_bond_indexes = div(length(current_physical_indexes), 2)
+        if n_bond_indexes < 1
+            error("Too many layers for the given number of physical indices.")
+        end
+
+        # Define bond indices for this layer
+        bond_indexes = [Index(bond_dimension, "layer$(layer)_bond $i") for i in 1:n_bond_indexes]
+        push!(bond_indices, bond_indexes)
+
+        # Define tensors for this layer
+        layer_tensors = [randomITensor(current_physical_indexes[2*i-1], current_physical_indexes[2*i], bond_indexes[i])
+                         for i in 1:n_bond_indexes]
+        layer_tensors = [normalize!(t) for t in layer_tensors]
+        push!(tensors, layer_tensors)
+
+        # Update current physical indices to bond indices for the next layer
+        current_physical_indexes = bond_indexes
+    end
+    
+    # Define the root tensor
+    if length(current_physical_indexes) == 2
+        root_tensor = randomITensor(current_physical_indexes[1], current_physical_indexes[2])
+    else
+        root_tensor = randomITensor(current_physical_indexes[1]) # Fallback for 1 bond index
+    end
+    root_tensor = normalize!(root_tensor)
+    
+
+    return tensors, root_tensor
+end
+
+
 
 function rename_tensor_indices!(tensors, old_indexes)
     """
@@ -59,7 +109,7 @@ function squared_norm(tensors::Vector{ITensor})
     Returns:
         The squared norm as a scalar value.
     """
-        
+
     # Conjugate each tensor
     conj_tensors = [dag(tensor) for tensor in tensors]
 
