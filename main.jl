@@ -22,8 +22,12 @@ TTN[1] = [randomITensor(index_physical[2*i-1], index_physical[2*i], index_bound_
 TTN[2] = [randomITensor(index_bound_1[2*i-1], index_bound_1[2*i], index_bound_2[i]) for i in 1:number_bound_2_indexes]
 TTN[3] = [randomITensor(index_bound_2[1], index_bound_2[2])]
 
-# CHECK
-contracted_initial = (TTN[1][1]*TTN[2][1]*TTN[1][2])*TTN[3][1]*(TTN[1][3]*TTN[2][2]*TTN[1][4])
+##############################################################################################################################
+contracted_initial_bottom = (TTN[1][1]*TTN[2][1]*TTN[1][2])*TTN[3][1]*(TTN[1][3]*TTN[2][2]*TTN[1][4])
+println("contracted_initial_top: ",contracted_initial_bottom*dag(contracted_initial_bottom))
+contracted_initial_top = vcat(TTN[1], TTN[2], TTN[3])
+println("contracted_initial_bottom: ",squared_norm(contracted_initial_top))
+##############################################################################################################################
 
 # Reduction to canonical form
 println("Starting reduction to canonical form")
@@ -58,5 +62,12 @@ for i in 1:number_bound_2_indexes
 end
 replaceind!(TTN[3][1], inds(TTN[3][1])[1], index_bound_2[1])
 replaceind!(TTN[3][1], inds(TTN[3][1])[2], index_bound_2[2])
-# CHECK
-contracted_final = (TTN[1][1]*TTN[2][1]*TTN[1][2])*TTN[3][1]*(TTN[1][3]*TTN[2][2]*TTN[1][4])
+
+##############################################################################################################################
+contracted_final_top = (TTN[1][1]*TTN[2][1]*TTN[1][2])*TTN[3][1]*(TTN[1][3]*TTN[2][2]*TTN[1][4])
+println("contracted_final_top: ",contracted_final_top*dag(contracted_final_top))
+contracted_final_bottom = vcat(TTN[1], TTN[2], TTN[3])
+println("contracted_final_bottom: ",squared_norm(contracted_final_bottom))
+println("contracted_final_root: ",TTN[3][1]*dag(TTN[3][1]))
+##############################################################################################################################
+
