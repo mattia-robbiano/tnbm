@@ -60,28 +60,26 @@ def perfect_sampling_ttn(ttn,number_indexes):
         ps0 = v0 @ reduced_tensor_network @ v0.reindex({f'k{i}':f'k{i}*'})
         ps1 = v1 @ reduced_tensor_network @ v1.reindex({f'k{i}':f'k{i}*'})
 
-        ##########NORMALIZATION TEST############
+        # check if the probability is normalized
         if ps0+ps1<0.999 or ps0+ps1>1.001:
             print("errore al ciclo: ",i)
             print('ps0: ',ps0)
             print('ps1: ',ps1)
-        ########################################
+        
 
         #extracting new element
         r = np.random.uniform(0, 1)
         if r < ps0:
-            s_hat[i] = v0.data
+            s_hat[i] = v0.data.cpu().numpy()
             probability[i] = ps0
         else:
-            s_hat[i] = v1.data
+            s_hat[i] = v1.data.cpu().numpy()
             probability[i] = ps1
     return s_hat
 
 def norm_fn(mera):
     # parametrize our tensors as isometric/unitary
     return mera.isometrize(method="cayley")
-
-#mera.apply_to_arrays(lambda x: torch.tensor(x, dtype=torch.float32))
 
 class Generator(torch.nn.Module):
 
@@ -123,6 +121,7 @@ class Discriminator(nn.Module):
         data = data.view(data.size(0), -1)  # Flatten the input tensor
         out = self.model(data)
         return out
+
 def real_batch_maker(batch_size, n=8, noise_level=0.1):
     # Define 8x8 matrices for digits 1
     digit_1 = np.array([
@@ -143,6 +142,7 @@ def real_batch_maker(batch_size, n=8, noise_level=0.1):
         noisy_digit_1 = np.where(noise, 1 - digit_1, digit_1)
         matrices.append(noisy_digit_1.flatten())
     return np.array(matrices).T
+
 def fake_batch_maker(generator, batch_size):
     fake_batch=[]
     for _ in range(batch_size):
@@ -165,16 +165,15 @@ discriminator = Discriminator()
 
 # Loss function and optimizers
 criterion = nn.BCELoss()
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.1)
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.1)
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.001)
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.00001)
 
-# Training loop
+print("Starting Training Loop...")
 for epoch in range(num_epochs):
     for i in range(batch_number):
         
         # Generate real data
         real_data = torch.tensor(np.array(real_batch_maker(batch_size)), dtype=torch.float32)
-        #batch_size = real_data.size(0)
 
         # Generate fake data
         fake_data = torch.tensor(np.array(fake_batch_maker(generator, batch_size)), dtype=torch.float32)
@@ -183,26 +182,30 @@ for epoch in range(num_epochs):
         real_labels = torch.ones(batch_size, 1)
         fake_labels = torch.zeros(batch_size, 1)
 
-        # Train discriminator on real data
-        outputs = discriminator(real_data.T)
-        loss_real = criterion(outputs, real_labels)
+        # === Train Discriminator ===
+        # On real data
+        discriminator.train()  # Ensure batchnorm/dropout behaves correctly
+        outputs_real = discriminator(real_data.T)
+        loss_real = criterion(outputs_real, real_labels)
 
-        # Train discriminator on fake data
-        outputs = discriminator(fake_data.detach())
-        loss_fake = criterion(outputs, fake_labels)
-        
-        # Total loss for discriminator
+        # On fake data
+        outputs_fake = discriminator(fake_data.detach())
+        loss_fake = criterion(outputs_fake, fake_labels)
+
+        # Total loss and optimization for discriminator
         loss_D = loss_real + loss_fake
         optimizer_D.zero_grad()
         loss_D.backward()
         optimizer_D.step()
 
-        # Train Generator
-        outputs = discriminator(fake_data)
-        loss_G = criterion(outputs, real_labels)
+        # === Train Generator ===
+        # Reuse fake data for generator training
+        outputs_fake = discriminator(fake_data)
+        loss_G = criterion(outputs_fake, real_labels)  # Labels are real for generator training
 
         optimizer_G.zero_grad()
         loss_G.backward()
         optimizer_G.step()
-    
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss D: {loss_D.item()}, Loss G: {loss_G.item()}")
+
+    # Logging epoch progress
+    print(f"Epoch [{epoch+1}/{num_epochs}] - Loss D: {loss_D.item():.4f}, Loss G: {loss_G.item():.4f}")
