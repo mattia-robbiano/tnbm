@@ -1,4 +1,3 @@
-%config InlineBackend.figure_formats = ['svg']
 import numpy as np
 import matplotlib.pyplot as plt
 import quimb as qu
@@ -6,6 +5,7 @@ import quimb.tensor as qtn
 from quimb.experimental.merabuilder import MERA
 import torch
 import torch.nn as nn
+
 
 # number of sites
 n = 2**6
