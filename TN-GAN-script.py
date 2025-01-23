@@ -7,58 +7,37 @@ import torch
 import torch.nn as nn
 
 
-# number of sites
-n = 2**6
-
-# max bond dimension
-D = 2
-
-# use single precision for quick GPU optimization
+# parameters
+numberOpenIndex = 2**6
+BondDimension = 2
 dtype = 'float32'
-mera = qtn.MERA.rand_invar(n, D, dtype=dtype)
 
-from math import cos, sin, pi
+Psi = qtn.MERA.rand_invar(numberOpenIndex, BondDimension, dtype=dtype)
+OpenIndex = [f'k{i}' for i in range(numberOpenIndex)]
 
-fix = {
-    f'k{i}': (sin(2 * pi * i / n), cos(2 * pi * i / n))
-    for i in range(n)
-}
+def perfect_sampling(TN,SamplingIndex):
+    
+    # inizizlize arrays
+    numberSamplingIndex = len(SamplingIndex)
+    s_hat = torch.zeros((numberSamplingIndex, 2), dtype=torch.float32)
+    probability = np.zeros(numberSamplingIndex)
 
-# reduce the 'spring constant' k as well
-draw_opts = dict(fix=fix, k=0.01)
+    #reindexing open indexes to be sampled to k_i
+    TN.reindex({SamplingIndex[i]: f'k{i}' for i in range(numberSamplingIndex)})
 
-#mera.draw(color=['_UNI', '_ISO'], **draw_opts)
-
-def perfect_sampling_ttn(ttn,number_indexes):
-    s_hat = np.zeros([number_indexes,2])
-    probability = np.zeros(number_indexes)
-
-    # cycle 0: the ttn is connected to the conjugate, except for the ph0 index, we obtain a matrix, multiplied by the basis vectors
-    # gives me the probability of extracting the first element. We extract the first element
-    # cycle 1: the vector extracted in the previous cycle is connected to the ph0 index of the ttn. The procedure repeats identically
-
-    for i in range(number_indexes):
-        step_tensor_network = ttn
-
+    for i in range(numberSamplingIndex):
+        stepTN = TN
         for j in range(i): 
-            # for each cycle connect a tensor to an index (in sequence from ph0 to ph14) up to the index before 
-            # the one I want to sample
-            v = qtn.Tensor(data=torch.tensor(s_hat[j], dtype=torch.float32), inds=[f'k{j}'], tags=[f'v{int(s_hat[j][0])}'])
-            step_tensor_network = step_tensor_network & v
-            step_tensor_network = step_tensor_network / np.sqrt(probability[j])
+            # connecting original TN with all extracted samples (tensors)
+            v = qtn.Tensor(data=s_hat[j].clone().detach().requires_grad_(True), inds=[f'k{j}'], tags=[f'v{int(s_hat[j][0])}'])
+            stepTN = (stepTN & v)/np.sqrt(probability[j])
 
-        # take the complex conjugate of the new network with the same indices as the first one except for the one I want to sample
-        step_tensor_network_full = step_tensor_network.H.reindex({f'k{i}':f'k{i}*'}) & step_tensor_network
-
-        # contraction of the network, I get the probability matrix of extracting the new element
-        reduced_tensor_network = step_tensor_network_full.contract(all)
-
-        # calculate the probability of extracting the two elements
+        # computing marginal
+        reducedTN = (stepTN.H.reindex({f'k{i}':f'k{i}*'}) & stepTN).contract(all, optimize='auto-hq')
         v0 = qtn.Tensor(data=torch.tensor([0, 1], dtype=torch.float32), inds=[f'k{i}'])
         v1 = qtn.Tensor(data=torch.tensor([1, 0], dtype=torch.float32), inds=[f'k{i}'])
-        
-        ps0 = v0 @ reduced_tensor_network @ v0.reindex({f'k{i}':f'k{i}*'})
-        ps1 = v1 @ reduced_tensor_network @ v1.reindex({f'k{i}':f'k{i}*'})
+        ps0 = v0 @ reducedTN @ v0.reindex({f'k{i}':f'k{i}*'})
+        ps1 = v1 @ reducedTN @ v1.reindex({f'k{i}':f'k{i}*'})
 
         # check if the probability is normalized
         if ps0+ps1<0.999 or ps0+ps1>1.001:
@@ -70,44 +49,38 @@ def perfect_sampling_ttn(ttn,number_indexes):
         #extracting new element
         r = np.random.uniform(0, 1)
         if r < ps0:
-            s_hat[i] = v0.data.cpu().numpy()
+            s_hat[i] = v0.data
             probability[i] = ps0
         else:
-            s_hat[i] = v1.data.cpu().numpy()
+            s_hat[i] = v1.data
             probability[i] = ps1
     return s_hat
 
-def norm_fn(mera):
-    # parametrize our tensors as isometric/unitary
-    return mera.isometrize(method="cayley")
+def norm_fn(TN):
+    # reconduct all tensors to closest isometric/unitary to stay in MERA space
+    return TN.isometrize(method="cayley")
 
 class Generator(torch.nn.Module):
-
-    def __init__(self, tn):
+    def __init__(self, TN, SamplingIndex):
         super().__init__()
-        # extract the raw arrays and a skeleton of the TN
-        params, self.skeleton = qtn.pack(tn)
-        # n.b. you might want to do extra processing here to e.g. store each
-        # parameter as a reshaped matrix (from left_inds -> right_inds), for
-        # some optimizers, and for some torch parametrizations
+        # Extract the raw arrays and a skeleton of the TN
+        params, self.skeleton = qtn.pack(TN)
         self.torch_params = torch.nn.ParameterDict({
-            # torch requires strings as keys
-            str(i): torch.nn.Parameter(initial)
+            str(i): torch.nn.Parameter(initial.clone().detach().requires_grad_(True))
             for i, initial in params.items()
         })
+        self.SamplingIndex = SamplingIndex
 
     def forward(self):
-        # convert back to original int key format
         params = {int(i): p for i, p in self.torch_params.items()}
-        # reconstruct the TN with the new parameters
+        # Reconstruct the TN with the new parameters
         psi = qtn.unpack(params, self.skeleton)
-        # isometrize and then return the energy
-        return perfect_sampling_ttn(norm_fn(psi), 64)
-    
+        return perfect_sampling(norm_fn(psi), self.SamplingIndex)
+
+
 class Discriminator(nn.Module):
-    def __init__(self, input_size=64):
-        super(Discriminator, self).__init__()
-        
+    def __init__(self, input_size):
+        super().__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, 128),
             nn.LeakyReLU(0.2, inplace=True),
@@ -118,13 +91,13 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, data):
-        data = data.view(data.size(0), -1)  # Flatten the input tensor
+        data = data.view(data.size(0), -1)
         out = self.model(data)
         return out
 
+
 def real_batch_maker(batch_size, n=8, noise_level=0.1):
-    # Define 8x8 matrices for digits 1
-    digit_1 = np.array([
+    digit_1 = torch.tensor([
         [0, 0, 1, 1, 0, 0, 0, 0],
         [0, 1, 1, 1, 0, 0, 0, 0],
         [0, 0, 1, 1, 0, 0, 0, 0],
@@ -133,35 +106,35 @@ def real_batch_maker(batch_size, n=8, noise_level=0.1):
         [0, 0, 1, 1, 0, 0, 0, 0],
         [0, 0, 1, 1, 0, 0, 0, 0],
         [0, 1, 1, 1, 1, 0, 0, 0]
-    ], dtype=np.float32)
+    ], dtype=torch.float32)
 
-    matrices = []
-    for i in range(batch_size):
-        # Add noise to digit 1
-        noise = np.random.rand(n, n) < noise_level
-        noisy_digit_1 = np.where(noise, 1 - digit_1, digit_1)
-        matrices.append(noisy_digit_1.flatten())
-    return np.array(matrices).T
+    # Add noise
+    noise = torch.rand(batch_size, n, n) < noise_level
+    noisy_matrices = torch.where(noise, 1 - digit_1, digit_1).view(batch_size, -1)
+    return noisy_matrices
+
 
 def fake_batch_maker(generator, batch_size):
-    fake_batch=[]
+    fake_batch = []
     for _ in range(batch_size):
         fake_sample = generator.forward()
-        # Convert each row ([0,1] or [1,0] states) of fake_sample to a single value: 0 and 1
-        fake_column_vector = np.array([0 if np.array_equal(row, [0, 1]) else 1 for row in fake_sample])
+        fake_column_vector = torch.tensor(
+            [0 if torch.equal(row, torch.tensor([0, 1])) else 1 for row in fake_sample],
+            dtype=torch.float32
+        )
         fake_batch.append(fake_column_vector)
-    return fake_batch
+    return torch.stack(fake_batch)
 
-# setting hyperparameters, since i am using synthetic dataset i am making up the size of the dataset
-# for each batch number iteration i will generate a new fake batch
+
+# Setting hyperparameters
 num_epochs = 100
 batch_number = 2
 batch_size = 5
 
-# initialize models
-mera.apply_to_arrays(lambda x: torch.tensor(x, dtype=torch.float32))
-generator = Generator(mera)
-discriminator = Discriminator()
+# Initialize models
+Psi.apply_to_arrays(lambda x: torch.tensor(x, dtype=torch.float32))
+generator = Generator(Psi, OpenIndex)
+discriminator = Discriminator(input_size=numberOpenIndex)
 
 # Loss function and optimizers
 criterion = nn.BCELoss()
@@ -171,24 +144,21 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.00001)
 print("Starting Training Loop...")
 for epoch in range(num_epochs):
     for i in range(batch_number):
-        
         # Generate real data
-        real_data = torch.tensor(np.array(real_batch_maker(batch_size)), dtype=torch.float32)
+        real_data = real_batch_maker(batch_size)
 
         # Generate fake data
-        fake_data = torch.tensor(np.array(fake_batch_maker(generator, batch_size)), dtype=torch.float32)
+        fake_data = fake_batch_maker(generator, batch_size)
 
         # Create labels
         real_labels = torch.ones(batch_size, 1)
         fake_labels = torch.zeros(batch_size, 1)
 
         # === Train Discriminator ===
-        # On real data
         discriminator.train()  # Ensure batchnorm/dropout behaves correctly
-        outputs_real = discriminator(real_data.T)
+        outputs_real = discriminator(real_data)
         loss_real = criterion(outputs_real, real_labels)
 
-        # On fake data
         outputs_fake = discriminator(fake_data.detach())
         loss_fake = criterion(outputs_fake, fake_labels)
 
@@ -199,7 +169,6 @@ for epoch in range(num_epochs):
         optimizer_D.step()
 
         # === Train Generator ===
-        # Reuse fake data for generator training
         outputs_fake = discriminator(fake_data)
         loss_G = criterion(outputs_fake, real_labels)  # Labels are real for generator training
 
