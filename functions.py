@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import quimb as qu
 import quimb.tensor as qtn
-from quimb.experimental.merabuilder import MERA
 import torch
 import torch.nn as nn
 
@@ -68,7 +67,7 @@ class Generator(torch.nn.Module):
         params = {int(i): p for i, p in self.torch_params.items()}
         # Reconstruct the TN with the new parameters
         psi = qtn.unpack(params, self.skeleton)
-        return perfect_sampling(norm_fn(psi), self.SamplingIndex)
+        return perfect_sampling(psi, self.SamplingIndex)
 
 
 class Discriminator(nn.Module):

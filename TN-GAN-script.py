@@ -6,99 +6,113 @@ from quimb.experimental.merabuilder import MERA
 import torch
 import torch.nn as nn
 from functions import *
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset
 
-# Making a simple synthetic dataset of 8x8 images
-def real_batch_maker(batch_size, n=4, noise_level=0.1):
-    digit_1 = torch.tensor([
-        [0, 1, 1, 0],
-        [1, 1, 1, 1],
-        [0, 1, 1, 0],
-        [0, 1, 1, 0]
-    ], dtype=torch.float32)
+def main():
 
-    # Add noise
-    noise = torch.rand(batch_size, n, n) < noise_level
-    noisy_matrices = torch.where(noise, 1 - digit_1, digit_1).view(batch_size, -1)
-    return noisy_matrices
+    # Load the digits dataset
+    digits = datasets.load_digits()
+    data   = digits.data
+    target = digits.target
 
-# Parameters
-numberOpenIndex = 2**4
-BondDimension = 2
-dtype = 'float32'
+    # Print the shape of the data
+    print("Data shape:", data.shape)
+    print("Target shape:", target.shape)
 
-# Initialize a random MERA
-Psi = qtn.MERA.rand_invar(numberOpenIndex, BondDimension, dtype=dtype)
-OpenIndex = [f'k{i}' for i in range(numberOpenIndex)]
+    # split in train and test
+    X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=0.2, random_state=42)
 
-# Setting hyperparameters
-num_epochs = 100
-batch_number = 938
-batch_size = 64
+    # Convert to PyTorch tensors
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_test_tensor = torch.tensor(y_test, dtype=torch.long)
 
-# Initialize models
-Psi.apply_to_arrays(lambda x: torch.tensor(x, dtype=torch.float32))
-generator = Generator(Psi, OpenIndex)
-discriminator = Discriminator(input_size=numberOpenIndex)
+    # Create TensorDataset and DataLoader for batching
+    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-# Loss function and optimizers
-criterion = nn.BCELoss()
-optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=0.0002)
-optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=0.00001)
+    # Initialize tensor network
+    numberOpenIndex = 2**6
+    BondDimension = 2
+    dtype = 'float32'
+    Psi = qtn.MPS_rand_state(L=numberOpenIndex, bond_dim=2)
+    OpenIndex = [f'k{i}' for i in range(numberOpenIndex)]
 
-# Lists to store losses
-losses_D = []
-losses_G = []
+    # Setting hyperparameters
+    num_epochs = 100
 
-# Training loop
-print("Starting Training Loop...")
-for epoch in range(num_epochs):
-    for i in range(batch_number):
+    # Initialize models
+    Psi.apply_to_arrays(lambda x: torch.tensor(x, dtype=torch.float32))
+    generator = Generator(Psi, OpenIndex)
+    discriminator = Discriminator(input_size=numberOpenIndex)
 
-        # Create batches
-        real_data = real_batch_maker(batch_size)
-        fake_data = fake_batch_maker(generator, batch_size)
+    # Loss function and optimizers
+    criterion = nn.BCELoss()
+    optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=0.0002)
+    optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=0.00001)
 
-        # Create labels
-        real_labels = torch.ones(batch_size, 1)
-        fake_labels = torch.zeros(batch_size, 1)
+    # Lists to store losses
+    losses_D = []
+    losses_G = []
 
-        # === Train Discriminator ===
-        for _ in range(2):
-            discriminator.train()
-            outputs_real = discriminator(real_data)
-            loss_real = criterion(outputs_real, real_labels)
+    # Training loop
+    print("Starting Training Loop...")
+    for epoch in range(num_epochs):
+        for batch_idx, (data, target) in enumerate(train_loader):
 
-            outputs_fake = discriminator(fake_data.detach())
-            loss_fake = criterion(outputs_fake, fake_labels)
+            batch_size = data.size(0)
 
-        # Total loss and optimization for discriminator
-        loss_D = loss_real + loss_fake
-        optimizer_D.zero_grad()
-        loss_D.backward()
-        optimizer_D.step()
+            # Create batches
+            real_data = data
+            fake_data = fake_batch_maker(generator, batch_size)
 
-        # === Train Generator ===
-        outputs_fake = discriminator(fake_data)
-        loss_G = criterion(outputs_fake, real_labels)  # Labels are real for generator training
+            # Create labels
+            real_labels = torch.ones(batch_size, 1)
+            fake_labels = torch.zeros(batch_size, 1)
 
-        optimizer_G.zero_grad()
-        loss_G.backward()
-        optimizer_G.step()
+            # === Train Discriminator ===
+            for _ in range(2):
+                discriminator.train()
+                outputs_real = discriminator(real_data)
+                loss_real = criterion(outputs_real, real_labels)
 
-        # Logging epoch progress
-        print(f"Epoch [{epoch+1}/{num_epochs}] - Loss D: {loss_D.item():.4f}, Loss G: {loss_G.item():.4f}")
+                outputs_fake = discriminator(fake_data.detach())
+                loss_fake = criterion(outputs_fake, fake_labels)
 
-    # Store losses
-    losses_D.append(loss_D.item())
-    losses_G.append(loss_G.item())
+            # Total loss and optimization for discriminator
+            loss_D = loss_real + loss_fake
+            optimizer_D.zero_grad()
+            loss_D.backward()
+            optimizer_D.step()
 
-# Plotting the losses
-plt.figure(figsize=(10, 5))
-plt.plot(losses_D, label='Discriminator Loss')
-plt.plot(losses_G, label='Generator Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.legend()
-plt.title('Training Losses')
-plt.savefig('/media/mattia/DATA_LINUX/documents/tesi/TN-QML/loss_plot.png')
-plt.show()
+            # === Train Generator ===
+            outputs_fake = discriminator(fake_data)
+            loss_G = criterion(outputs_fake, real_labels)  # Labels are real for generator training
+
+            optimizer_G.zero_grad()
+            loss_G.backward()
+            optimizer_G.step()
+
+            # Logging epoch progress
+            print(f"Epoch [{epoch+1}/{num_epochs}] - Loss D: {loss_D.item():.4f}, Loss G: {loss_G.item():.4f}")
+
+        # Store losses
+        losses_D.append(loss_D.item())
+        losses_G.append(loss_G.item())
+
+    # Plotting the losses
+    plt.figure(figsize=(10, 5))
+    plt.plot(losses_D, label='Discriminator Loss')
+    plt.plot(losses_G, label='Generator Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Training Losses')
+    plt.savefig('/media/mattia/DATA_LINUX/documents/tesi/TN-QML/loss_plot.png')
+    plt.show()
+
+if __name__ == '__main__':
+    main()
