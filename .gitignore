@@ -3,3 +3,4 @@ miscellaneous_functions.py
 TTN_julia.ipynb
 main.jl
 /generated_samples/
+/__pycache__/
