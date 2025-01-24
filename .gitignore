@@ -5,3 +5,4 @@ main.jl
 /generated_samples/
 /__pycache__/
 test.py
+/.venv/
