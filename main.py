@@ -17,6 +17,11 @@ with open("parameters.json", "r") as f:
     config = json.load(f)
 SAMPLE_BITSTRING_DIMENSION = config['SAMPLE_BITSTRING_DIMENSION']
 PRINT_TARGET_PDF = config['PRINT_TARGET_PDF']
+DEVICE = config['DEVICE'] #cpu or gpu string format
+
+
+jax.config.update("jax_platform_name", DEVICE)
+print(jax.devices())
 
 
 # Setting circuit parameters
