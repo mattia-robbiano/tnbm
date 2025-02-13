@@ -1,4 +1,5 @@
 # Ignoring all emacs autosaves
 *#
 *~
+*#*
 __pycache__/
