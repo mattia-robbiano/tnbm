@@ -1,0 +1,10 @@
+import dataset
+import born_machine_1
+
+def main():
+    
+    dataset = get_bars_and_stripes(3)
+    print(dataset.shape)
+    
+if __name__ == "__main__":
+    main()
