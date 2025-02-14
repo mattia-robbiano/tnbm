@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def print_bitstring_distribution(data):
+#
+# Simple function to lot histogram of occurence of bitstring in the dataset over all possible bitstring of that dimension
+#
     n = data.shape[1]
     print(data.shape)
     bitstrings = []

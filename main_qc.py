@@ -21,7 +21,6 @@ DEVICE = config['DEVICE'] #cpu or gpu string format
 
 
 jax.config.update("jax_platform_name", DEVICE)
-print(jax.devices())
 
 
 # Setting circuit parameters
@@ -39,6 +38,7 @@ if math.sqrt(SAMPLE_BITSTRING_DIMENSION).is_integer() == False:
     raise ValueError("bitstring samples dimension must be a perfect square!")
 print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))*2-2}")
 print(f"print target probability distribution: {PRINT_TARGET_PDF}")
+print(f"Using: {jax.devices()}")
 print()
 
 @qml.qnode(dev)
@@ -46,13 +46,7 @@ def circuit(weights):
     qml.StronglyEntanglingLayers(weights=weights, ranges=[1] * n_layers, wires=range(n_qubits))
     return qml.probs()
 
-def main():
-    # Building dataset
-    data = get_bars_and_stripes(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))
-    if PRINT_TARGET_PDF == True:
-        print_bitstring_distribution(data)
-
-    # Building target distribution py. Service variable nums collect bitstrings corresponding to a bars and stripes sample
+def get_distribution(data):
     bitstrings = []
     nums = []
     for d in data:
@@ -60,8 +54,17 @@ def main():
         nums += [int(bitstrings[-1], 2)]
     py = np.zeros(2**SAMPLE_BITSTRING_DIMENSION)
     py[nums] = 1 / len(data)
+    return py
 
-    
+
+def main():
+    # Building dataset
+    data = get_bars_and_stripes(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))
+    if PRINT_TARGET_PDF == True:
+        print_bitstring_distribution(data)
+    py = get_distribution(data)
+
+
     # Initializing ansatz
     wshape = qml.StronglyEntanglingLayers.shape(n_layers=n_layers, n_wires=n_qubits)
     weights = np.random.random(size=wshape)    
