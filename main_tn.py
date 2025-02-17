@@ -7,7 +7,7 @@ import quimb as qu
 import quimb.tensor as qtn
 
 
-from  born_machine_1 import QCBM, MMD
+from  born_machine import QCBM, MMD
 from dataset import get_bars_and_stripes
 from plotting import *
 
@@ -40,21 +40,7 @@ print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSIO
 print(f"print target probability distribution: {PRINT_TARGET_PDF}")
 print(f"Using: {jax.devices()}")
 print()
-
-def sample_tn(psi):
-    samples = []
-    for b in psi.sample(512, seed=51,backend="jax"):
-        samples.append(b[0])
-    print("passato!")
-    return samples
-
-# Loss function, defined
-def loss_fn(psi, py, mmd):
-    samples = sample_tn(psi)
-    px = get_distribution(samples)
-    loss = mmd(px,py)
-    return loss
-    
+  
 
 def get_distribution(data):
     bitstrings = []
@@ -87,8 +73,20 @@ def main():
     mmd = MMD(bandwidth, space)
 
 
-    print(f"Initial loss value {loss_fn(psi,py,mmd)}")
+    # Optimization
+    def sample_tn(psi):
+        samples = []
+        for b in psi.sample(512, seed=51,backend="jax"):
+            samples.append(b[0])
+        return samples
 
+    def loss_fn(psi, py, mmd):
+        samples = sample_tn(psi)
+        px = get_distribution(samples)
+        loss = mmd(px,py)
+        return loss
+    
+    print(f"Initial loss value {loss_fn(psi,py,mmd)}")
     tnopt = qtn.TNOptimizer(
         psi,
         loss_fn = loss_fn,
@@ -96,7 +94,6 @@ def main():
         optimizer="adam",
         autodiff_backend= "AUTO"
     )
-
     psi_opt = tnopt.optimize(10)
 
 
