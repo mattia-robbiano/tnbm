@@ -1,15 +1,13 @@
+import json
 import numpy as np
 import math
 import pennylane as qml
 import jax
 import jax.numpy as jnp
 import optax
-
-from  born_machine_1 import QCBM, MMD
-from dataset import get_bars_and_stripes
-from plotting import *
-
-import json
+from  born_machine import QCBM, MMD
+from fun.dataset import get_bars_and_stripes
+from fun.plotting import *
 
 
 # Importing configuration file

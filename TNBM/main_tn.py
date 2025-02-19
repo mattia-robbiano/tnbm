@@ -5,12 +5,12 @@ import quimb as qu
 import jax
 import jax.numpy as jnp
 import quimb as qu
-import quimb.tensor as qtn#
+import quimb.tensor as qtn
 
-from  lib.born_machine import QCBM, MMD
-from lib.dataset import get_bars_and_stripes
-from lib.plotting import *
-from lib.functions import perfect_sampling
+from  QCBM.born_machine import QCBM, MMD
+from fun.dataset import get_bars_and_stripes
+from fun.plotting import *
+from sampling import perfect_sampling
 
 
 # Importing configuration file
