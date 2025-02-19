@@ -1,17 +1,16 @@
+import json
 import numpy as np
 import math
 import quimb as qu
 import jax
 import jax.numpy as jnp
 import quimb as qu
-import quimb.tensor as qtn
+import quimb.tensor as qtn#
 
-
-from  born_machine import QCBM, MMD
-from dataset import get_bars_and_stripes
-from plotting import *
-
-import json
+from  lib.born_machine import QCBM, MMD
+from lib.dataset import get_bars_and_stripes
+from lib.plotting import *
+from lib.functions import perfect_sampling
 
 
 # Importing configuration file
@@ -76,8 +75,8 @@ def main():
     # Optimization
     def sample_tn(psi):
         samples = []
-        for b in psi.sample(512, seed=51,backend="jax"):
-            samples.append(b[0])
+        for i in range(512):
+            samples.append(perfect_sampling(psi))
         return samples
 
     def loss_fn(psi, py, mmd):
@@ -86,13 +85,16 @@ def main():
         loss = mmd(px,py)
         return loss
     
-    print(f"Initial loss value {loss_fn(psi,py,mmd)}")
+    #print(f"Initial loss value {loss_fn(psi,py,mmd)}")
+    print()
+    print()
+    print()
     tnopt = qtn.TNOptimizer(
         psi,
         loss_fn = loss_fn,
         loss_kwargs={"py": py,"mmd":mmd},
         optimizer="adam",
-        autodiff_backend= "AUTO"
+        autodiff_backend= "jax"
     )
     psi_opt = tnopt.optimize(10)
 
