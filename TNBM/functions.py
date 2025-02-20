@@ -1,5 +1,8 @@
+import json
 import numpy as np
 import matplotlib.pyplot as plt
+import jax
+import math
 
 def get_bars_and_stripes(n):
 
@@ -134,3 +137,27 @@ class MMD:
     def __call__(self, px, py):
         pxy = px - py
         return self.k_expval(pxy, pxy)
+
+def load_parameters(path):
+    #
+    # Importing configuration file and IO
+    # DEVICE = "cpu" or "gpu" (strings)
+    #
+    with open(path, "r") as f:
+        config = json.load(f)
+    SAMPLE_BITSTRING_DIMENSION = config['SAMPLE_BITSTRING_DIMENSION']
+    PRINT_TARGET_PDF = config['PRINT_TARGET_PDF']
+    DEVICE = config['DEVICE']
+    EPOCHS = config['EPOCHS']
+
+    print()
+    print("Configuration:")
+    print(f"bitsting samples dimension: {SAMPLE_BITSTRING_DIMENSION}")
+    if math.sqrt(SAMPLE_BITSTRING_DIMENSION).is_integer() == False:
+        raise ValueError("bitstring samples dimension must be a perfect square!")
+    print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))*2-2}")
+    print(f"print target probability distribution: {PRINT_TARGET_PDF}")
+    print(f"Using: {jax.devices()}")
+    print()
+
+    return SAMPLE_BITSTRING_DIMENSION, PRINT_TARGET_PDF, DEVICE, EPOCHS
