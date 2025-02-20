@@ -40,7 +40,7 @@ def print_bitstring_distribution(data):
     plt.subplots_adjust(bottom=0.3)
     plt.show()
 
-def get_distribution(data):
+def get_distribution(data,bitstring_dimension):
     #
     # Simple function to plot discrete probability distribution of a bitstring dataset over all the possible bitstrings
     # with the same dimension.
@@ -50,7 +50,7 @@ def get_distribution(data):
     for d in data:
         bitstrings += ["".join(str(int(i)) for i in d)]
         nums += [int(bitstrings[-1], 2)]
-    py = np.zeros(2**SAMPLE_BITSTRING_DIMENSION)
+    py = np.zeros(2**bitstring_dimension)
     py[nums] = 1 / len(data)
     return py
 
@@ -124,8 +124,8 @@ class MMD:
 #        
     def __init__(self, scales, space):
         gammas = 1 / (2 * (scales**2))
-        sq_dists = jnp.abs(space[:, None] - space[None, :]) ** 2
-        self.K = sum(jnp.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
+        sq_dists = np.abs(space[:, None] - space[None, :]) ** 2
+        self.K = sum(np.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
         self.scales = scales
 
     def k_expval(self, px, py):
