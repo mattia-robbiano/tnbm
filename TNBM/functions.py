@@ -3,6 +3,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import jax
 import math
+from sklearn.metrics import pairwise_distances
+
+def kernel(X,Y,sigma):
+
+    distances = pairwise_distances(X,Y,n_jobs=-1).reshape(-1)
+    kern      = np.array([np.exp(-distances**2/(2*s)) for s in sigma])
+
+    return np.mean(kern, axis=-1)
+
+def MMD(samples, target, sigma):
+
+    return kernel(samples,samples,sigma) - 2*kernel(samples,target,sigma) + kernel(target,target,sigma)
 
 def get_bars_and_stripes(n):
 
@@ -102,42 +114,6 @@ class ADAM:
         self._t +=1
         return params_new
 
-class MMD:
-#
-# Define a MMD object, initialized once given the points on which we are evaluating exected value of kernel function
-# and sigmas.
-#
-# METHODS:
-#    
-# __init__ ::
-#    
-#    scales: array of sigmas of the kernel functions we want to sum over
-#    space:  array of points at which probability distributions will be evaluated when calculating expectation
-#    value
-#   
-#    sq_dists: (space[:m None] - space[None, :]) the two 1d arrays are casted in a column and row matrices
-#    subtracting, we are creating a matrix of pairwise distances (each squared by **2).
-#
-# k_expval ::
-#    
-#    returns expected value of K(x,y) over the distributions px, py, meaning we will extract x from px and
-#    y from py
-#
-# __call__ :: returns the loss value, calculated with reduced expression, see google doc in readme for references    
-#        
-    def __init__(self, scales, space):
-        gammas = 1 / (2 * (scales**2))
-        sq_dists = np.abs(space[:, None] - space[None, :]) ** 2
-        self.K = sum(np.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
-        self.scales = scales
-
-    def k_expval(self, px, py):
-        return px @ self.K @ py
-
-    def __call__(self, px, py):
-        pxy = px - py
-        return self.k_expval(pxy, pxy)
-
 def load_parameters(path):
     #
     # Importing configuration file and IO
@@ -161,3 +137,6 @@ def load_parameters(path):
     print()
 
     return SAMPLE_BITSTRING_DIMENSION, PRINT_TARGET_PDF, DEVICE, EPOCHS
+
+
+    
