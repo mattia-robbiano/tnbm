@@ -4,17 +4,8 @@ import matplotlib.pyplot as plt
 import jax
 import math
 from sklearn.metrics import pairwise_distances
-
-def kernel(X,Y,sigma):
-
-    distances = pairwise_distances(X,Y,n_jobs=-1).reshape(-1)
-    kern      = np.array([np.exp(-distances**2/(2*s)) for s in sigma])
-
-    return np.mean(kern, axis=-1)
-
-def MMD(samples, target, sigma):
-
-    return kernel(samples,samples,sigma) - 2*kernel(samples,target,sigma) + kernel(target,target,sigma)
+import quimb
+import quimb.tensor as qtn
 
 def get_bars_and_stripes(n):
 
@@ -138,5 +129,66 @@ def load_parameters(path):
 
     return SAMPLE_BITSTRING_DIMENSION, PRINT_TARGET_PDF, DEVICE, EPOCHS
 
+def A(n,l):
+    # Define the set A of all possible bitstrings of lenght n and return the ones with norm l
+    A = [np.array(list(bin(i)[2:].zfill(n)), dtype=int) for i in range(2**n)]
+    A = [a for a in A if sum(a) == l]
+    return A
 
+# Define Dl string of observables
+def Ommd(n, sigma):
+    """
+    Building the observable Dl for a given sigma and n. The standard name for the indexes are k1, k2, ..., kn, b1, b2, ..., bn.
+    """
+    # Set parameters:
+    n = 9             # number of qubits per half
+    L = 2 * n         # total number of sites
+
+    Dl_list = []
+    # Questa è la sommatoria di tutti i Dl con il loro coefficiente coef1
+    for l in range(1, n+1):
+        p_sigma = (1 - np.exp(-1/(2*sigma)))/2
+        coef = p_sigma**l * (1-p_sigma)**(n-l)
+
+        A_l = A(n, l)
+
+        # Building D2l
+        mpo_list = []
+        for i in A_l:
+            site1 = i
+            site2 = site1 + n
+
+            # Define operators:
+            Z = np.array([[1, 0],
+                        [0, -1]])
+            I = np.eye(2)
+
+            # Build MPO tensors: each tensor is shaped (1, 1, 2, 2)
+            mpo_tensors = []
+            for site in range(L):
+                # Choose Z on the designated sites, I elsewhere:
+                op = Z if site in site1 or site in site2 else I
+                tensor = op.reshape(1, 2, 2) if site in [0, L - 1] else op.reshape(1, 1, 2, 2)
+                mpo_tensors.append(tensor)
+
+            # Create the MPO. Here, 'sites' and 'L' help label the tensor network.
+            mpo = qtn.MatrixProductOperator(
+                mpo_tensors,
+                sites=range(L),
+                L=L,
+                shape='lrud'
+            )
+            mpo_list.append(mpo)
+
+        # Sum all the MPOs
+        Dl = mpo_list[0]
+        for i in mpo_list[1:]:
+            Dl = Dl.add_MPO(i)
+        
+        Dl_list.append(coef*Dl)
+
+    O = Dl_list[0]
+    for i in Dl_list[1:]:
+        Dl = Dl.add_MPO(i)
     
+    return Dl

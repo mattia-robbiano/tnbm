@@ -43,9 +43,9 @@ def main():
     number_open_index = 9
     bond_dimension =   2
     psi = qtn.MPS_rand_state(L=number_open_index, bond_dim=bond_dimension)
-    print("MODEL:")
-    print(psi)
-    print()
+    #print("MODEL:")
+    #print(psi)
+    #print()
     initial_tensor_array = []
     for site, tensor in psi.tensor_map.items():
         initial_tensor_array.append(tensor.data)
@@ -59,9 +59,34 @@ def main():
     """
 
     """PARAMETERS INITIALIZATION"""
-    batch_size = 12
-    sigmas = np.array([0.25, 0.5, 1])
-    tolerance = 1e-6
+    sigma = 0.09    # Fix a single sigma for now
+    
+    """Defining the sample MPS state"""
+    bitstring = dataset[0]
+    bitstring = np.array([int(x) for x in bitstring])
+    bitstring = qtn.MPS_computational_state(bitstring)
+    bitstring /= bitstring.H @ bitstring
+    rename_dict = {f'k{i}': f'k{i+number_open_index}' for i in range(number_open_index)}
+    bitstring.reindex_(rename_dict)
+
+    """
+    Building the MMD MPO. The default open indexes are k1, k2, ..., kn, b1, b2, ..., bn.
+    Then we can contract the MPO with the MPS and the bitstring state to get the loss function.
+    """
+    Omm = Ommd(number_open_index, sigma)
+    
+    """ Test loss function values with a random state"""
+    for i in range(10):
+
+        psi = qtn.MPS_rand_state(L=number_open_index, bond_dim=bond_dimension)
+
+        loss = psi & Omm & bitstring
+        # Here we should do the trace but we have a MPS, what happends then??
+        loss = loss @ loss.H
+        print(loss)
+
+    return 0
+
 
 
     for ep in range(EPOCHS):

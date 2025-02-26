@@ -2,11 +2,9 @@
 # Definition of classes and functions to simulate a quantum circuit born machine. The simulation framework is
 # pennylane + jax.
 #
-import jax
-import jax.numpy as jnp
+import numpy as np
 from functools import partial
 
-jax.config.update("jax_enable_x64", True)
 
 class QCBM:
 #
@@ -30,7 +28,6 @@ class QCBM:
         self.mmd = mmd
         self.py = py
 
-    @partial(jax.jit, static_argnums=0)
     def mmd_loss(self, params):
         px = self.circ(params)
         return self.mmd(px, self.py), px
@@ -60,8 +57,8 @@ class MMD:
 #        
     def __init__(self, scales, space):
         gammas = 1 / (2 * (scales**2))
-        sq_dists = jnp.abs(space[:, None] - space[None, :]) ** 2
-        self.K = sum(jnp.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
+        sq_dists = np.abs(space[:, None] - space[None, :]) ** 2
+        self.K = sum(np.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
         self.scales = scales
 
     def k_expval(self, px, py):
