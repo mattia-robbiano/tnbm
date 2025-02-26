@@ -193,7 +193,7 @@ def Ommd(n, sigma):
     
     return Dl
 
-def MMD(x, y, sigma, number_open_index, bond_dimension):
+def MMD(x, y,Ommd, sigma, number_open_index, bond_dimension):
     """
     samples and target are two Matrix Product States.
     """
@@ -208,8 +208,8 @@ def MMD(x, y, sigma, number_open_index, bond_dimension):
     Then we can contract the MPO with the MPS and the bitstring state to get the loss function.
     """
 
-    Omm = Ommd(number_open_index, sigma)
-    loss = x & Omm & y
+    #Omm = Ommd(number_open_index, sigma)
+    loss = x & Ommd & y
     # Here we should do the trace but we have a MPS, what happends then??
     loss = loss @ loss.H
 
