@@ -192,3 +192,25 @@ def Ommd(n, sigma):
         Dl = Dl.add_MPO(i)
     
     return Dl
+
+def MMD(x, y, sigma, number_open_index, bond_dimension):
+    """
+    samples and target are two Matrix Product States.
+    """
+
+    x /= x.H @ x
+    y /= y.H @ y
+    rename_dict = {f'k{i}': f'k{i+number_open_index}' for i in range(number_open_index)}
+    y.reindex_(rename_dict)
+
+    """
+    Building the MMD MPO. The default open indexes are k1, k2, ..., kn, b1, b2, ..., bn.
+    Then we can contract the MPO with the MPS and the bitstring state to get the loss function.
+    """
+
+    Omm = Ommd(number_open_index, sigma)
+    loss = x & Omm & y
+    # Here we should do the trace but we have a MPS, what happends then??
+    loss = loss @ loss.H
+
+    return loss
