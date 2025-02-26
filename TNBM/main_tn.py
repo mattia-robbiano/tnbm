@@ -55,14 +55,14 @@ def main():
     tolerance = 1e-6
     
     # # test
-    # random_bitstring = np.array([0,0,0,0,0,0,0,0,0])
-    # y = qtn.MPS_computational_state(random_bitstring)
-    # for i in range(10):
-    #     x = qtn.MPS_rand_state(number_open_index, bond_dimension)
-    #     loss = MMD(x, y, sigma, number_open_index, bond_dimension)
-    #     print(loss)
+    random_bitstring = np.array([0,0,0,0,0,0,0,0,0])
+    y = qtn.MPS_computational_state(random_bitstring)
+    for i in range(10):
+        x = qtn.MPS_rand_state(number_open_index, bond_dimension)
+        loss = MMD(x, y, sigma, number_open_index, bond_dimension)
+        print(loss)
 
-    # return 0
+    return 0
 
     for ep in range(EPOCHS):
 
