@@ -1,6 +1,6 @@
 {
     "SAMPLE_BITSTRING_DIMENSION": 9,
     "PRINT_TARGET_PDF": false,
-    "DEVICE": "cpu",
+    "DEVICE": "gpu",
     "EPOCHS": 10
 }
