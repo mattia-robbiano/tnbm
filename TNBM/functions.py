@@ -2,26 +2,32 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import jax
+import jax.numpy as jnp
 import math
 from sklearn.metrics import pairwise_distances
 import quimb
 import quimb.tensor as qtn
 
+jax.config.update("jax_enable_x64", True)
+
 def get_bars_and_stripes(n):
 
     bitstrings = [list(np.binary_repr(i, n))[::-1] for i in range(2**n)]
-    bitstrings = np.array(bitstrings, dtype=int)
+    bitstrings = jnp.array(bitstrings, dtype=int)
     
     stripes = bitstrings.copy()
-    stripes = np.repeat(stripes, n, 0)
+    stripes = jnp.repeat(stripes, n, 0)
     stripes = stripes.reshape(2**n, n * n)
 
     bars = bitstrings.copy()
     bars = bars.reshape(2**n * n, 1)
-    bars = np.repeat(bars, n, 1)
+    bars = jnp.repeat(bars, n, 1)
     bars = bars.reshape(2**n, n * n)
 
-    return np.vstack((stripes[0 : stripes.shape[0] - 1], bars[1 : bars.shape[0]]))
+    dataset = jnp.vstack((stripes[0 : stripes.shape[0] - 1], bars[1 : bars.shape[0]]))
+
+    return dataset
+
 
 def print_bitstring_distribution(data):
 #
@@ -34,11 +40,11 @@ def print_bitstring_distribution(data):
     for d in data:
         bitstrings += ["".join(str(int(i)) for i in d)]
         nums += [int(bitstrings[-1], 2)]
-        probs = np.zeros(2**n)
+        probs = jnp.zeros(2**n)
         probs[nums] = 1 / len(data)
         
     plt.figure(figsize=(12, 5))
-    plt.bar(np.arange(2**n), probs, width=2.0, label=r"$\pi(x)$")
+    plt.bar(jnp.arange(2**n), probs, width=2.0, label=r"$\pi(x)$")
     plt.xticks(nums, bitstrings, rotation=80)
     plt.xlabel("Samples")
     plt.ylabel("Prob. Distribution")
@@ -56,54 +62,10 @@ def get_distribution(data,bitstring_dimension):
     for d in data:
         bitstrings += ["".join(str(int(i)) for i in d)]
         nums += [int(bitstrings[-1], 2)]
-    py = np.zeros(2**bitstring_dimension)
+    py = jnp.zeros(2**bitstring_dimension)
     py[nums] = 1 / len(data)
+
     return py
-
-class ADAM:
-    def __init__(
-        self,
-        n_param,
-        tol: float = 1e-6,
-        lr: float = 1e-1,
-        beta_1: float = 0.9,
-        beta_2: float = 0.99,
-        noise_factor: float = 1e-8,
-        eps: float = 1e-10,
-        amsgrad: bool = False,
-    ) -> None:
-
-        self._tol = tol
-        self._lr = lr
-        self._beta_1 = beta_1
-        self._beta_2 = beta_2
-        self._noise_factor = noise_factor
-        self._eps = eps
-        self._amsgrad = amsgrad
-
-
-        self._t = 1
-        self._m = np.zeros((n_param))
-        self._v = np.zeros((n_param))
-        if self._amsgrad:
-            self._v_eff = np.zeros((n_param))
-
-    def update(self,params,derivative):
-
-        self._m = self._beta_1 * self._m + (1 - self._beta_1) * derivative
-        self._v = self._beta_2 * self._v + (1 - self._beta_2) * derivative * derivative
-        lr_eff = self._lr * np.sqrt(1 - self._beta_2**self._t) / (1 - self._beta_1**self._t)
-        if not self._amsgrad:
-            params_new = params - lr_eff * self._m.flatten() / (
-                    np.sqrt(self._v.flatten()) + self._noise_factor
-                )
-        else:
-            self._v_eff = np.maximum(self._v_eff, self._v)
-            params_new = params - lr_eff * self._m.flatten() / (
-                    np.sqrt(self._v_eff.flatten()) + self._noise_factor
-                )
-        self._t +=1
-        return params_new
 
 def load_parameters(path):
     #
@@ -116,6 +78,8 @@ def load_parameters(path):
     PRINT_TARGET_PDF = config['PRINT_TARGET_PDF']
     DEVICE = config['DEVICE']
     EPOCHS = config['EPOCHS']
+
+    jax.config.update("jax_platform_name", DEVICE)
 
     print()
     print("Configuration:")
@@ -147,7 +111,7 @@ def Ommd(n, sigma):
     Dl_list = []
     # Questa è la sommatoria di tutti i Dl con il loro coefficiente coef1
     for l in range(1, n+1):
-        p_sigma = (1 - np.exp(-1/(2*sigma)))/2
+        p_sigma = (1 - jnp.exp(-1/(2*sigma)))/2
         coef = p_sigma**l * (1-p_sigma)**(n-l)
 
         A_l = A(n, l)
@@ -159,9 +123,9 @@ def Ommd(n, sigma):
             site2 = site1 + n
 
             # Define operators:
-            Z = np.array([[1, 0],
+            Z = jnp.array([[1, 0],
                         [0, -1]])
-            I = np.eye(2)
+            I = jnp.eye(2)
 
             # Build MPO tensors: each tensor is shaped (1, 1, 2, 2)
             mpo_tensors = []

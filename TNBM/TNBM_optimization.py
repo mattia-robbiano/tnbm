@@ -40,6 +40,3 @@ tnopt = qtn.TNOptimizer(
 tnopt
 
 psi_opt = tnopt.optimize(1000)
-
-fig = tnopt.plot()
-fig.savefig('optimization_plot.png')
