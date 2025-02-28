@@ -95,12 +95,12 @@ def main():
 
     psi_opt = tnopt.optimize(1000)
     fig, ax = tnopt.plot()
-    fig.savefig("plot.png")
+    fig.savefig("/results/plot.png")
 
     """
     Save the tensor network
     """
-    with open('tensor_network.pkl', 'wb') as f:
+    with open('/results/tensor_network.pkl', 'wb') as f:
         pickle.dump(psi_opt, f)
 
 

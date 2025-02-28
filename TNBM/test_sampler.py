@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 seed = int(time.time())
 
-with open('tensor_network.pkl', 'rb') as f:
+with open('/results/tensor_network.pkl', 'rb') as f:
     tn = pickle.load(f)
 
 num_images = 10
@@ -24,4 +24,4 @@ for i, b in enumerate(tn.sample(num_images, seed)):
     axes[i].set_title(f'Image {i+1}')
 
 plt.tight_layout()
-plt.savefig("sampled_images.png")
+plt.savefig("/results/sampled_images.png")
