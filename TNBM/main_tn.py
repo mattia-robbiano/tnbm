@@ -68,7 +68,6 @@ def main():
     def loss_fn(psi,dataset,mpo):
         loss = 0
         for data in dataset:
-            #y = qtn.MPS_computational_state(data)
             loss += MMD(psi, data, mpo, sigma, SAMPLE_BITSTRING_DIMENSION, bond_dimension)
         loss = loss / len(dataset)
 
