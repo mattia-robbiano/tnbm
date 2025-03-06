@@ -68,8 +68,10 @@ def main():
     def loss_fn(psi,dataset,mpo):
         loss = 0
         for data in dataset:
-            loss += MMD(psi, data, mpo, sigma, SAMPLE_BITSTRING_DIMENSION, bond_dimension)
-        loss = loss / len(dataset)
+            data_copy = data.copy()
+            psi_copy = psi.copy()
+            loss += MMD(psi, psi_copy, mpo, sigma, SAMPLE_BITSTRING_DIMENSION, bond_dimension) - 2*MMD(psi, data, mpo, sigma, SAMPLE_BITSTRING_DIMENSION, bond_dimension) + MMD(data_copy, data, mpo, sigma, SAMPLE_BITSTRING_DIMENSION, bond_dimension)
+            loss = loss / len(dataset)
 
         return loss
     
@@ -93,19 +95,18 @@ def main():
         autodiff_backend="jax",
     )
 
+
     psi_opt = tnopt.optimize(1000)
     fig, ax = tnopt.plot()
-    fig.savefig("/results/plot.png")
+    fig.savefig("results/plot.png")
 
     """
     Save the tensor network
     """
-    with open('/results/tensor_network.pkl', 'wb') as f:
+    with open('results/tensor_network.pkl', 'wb') as f:
         pickle.dump(psi_opt, f)
 
-
     return 0
-
 
 if __name__ == "__main__":
     main()

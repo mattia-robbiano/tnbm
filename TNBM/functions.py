@@ -68,10 +68,10 @@ def get_distribution(data,bitstring_dimension):
     return py
 
 def load_parameters(path):
-    #
-    # Importing configuration file and IO
-    # DEVICE = "cpu" or "gpu" (strings)
-    #
+    """
+    Importing configuration file and IO
+    DEVICE = "cpu" or "gpu" (strings)
+    """
     with open(path, "r") as f:
         config = json.load(f)
     SAMPLE_BITSTRING_DIMENSION = config['SAMPLE_BITSTRING_DIMENSION']
@@ -94,48 +94,55 @@ def load_parameters(path):
     return SAMPLE_BITSTRING_DIMENSION, PRINT_TARGET_PDF, DEVICE, EPOCHS
 
 def A(n,l):
-    # Define the set A of all possible bitstrings of lenght n and return the ones with norm l
+    """
+    Simple function to define the set A of all possible bitstrings of lenght n and return the ones with norm l, where l is the number of 1s in the bitstring.
+    """
     A = [np.array(list(bin(i)[2:].zfill(n)), dtype=int) for i in range(2**n)]
     A = [a for a in A if sum(a) == l]
     return A
 
-# Define Dl string of observables
 def Ommd(n, sigma):
     """
-    Building the observable Dl for a given sigma and n. The standard name for the indexes are k1, k2, ..., kn, b1, b2, ..., bn.
+    Building the observable Ommd. The observable is a sum of all the Dl operators, each one weighted by a coefficient.
+    The Dl operator is a sum of all the MPOs that are the sum of all the Z operators on the sites of the bitstring.
     """
-    # Set parameters:
-    n = 9             # number of qubits per half
-    L = 2 * n         # total number of sites
 
+    L = 2 * n
+    p_sigma = (1 - jnp.exp(-1/(2*sigma)))/2
+    Z = jnp.array([[1, 0 ],
+                   [0 ,-1]])
+    Id = jnp.eye(2)
+
+    """ 
+    Sum over l from 1 to n, i am excluding 0 because i'm not sure how to treat it. For each l I am calculating the coefficient and the set A of all the bitstrings of length n with l 1s, (|A|=l)
+    """
     Dl_list = []
-    # Questa è la sommatoria di tutti i Dl con il loro coefficiente coef1
     for l in range(1, n+1):
-        p_sigma = (1 - jnp.exp(-1/(2*sigma)))/2
+        
         coef = p_sigma**l * (1-p_sigma)**(n-l)
-
         A_l = A(n, l)
 
-        # Building D2l
-        mpo_list = []
-        for i in A_l:
-            site1 = i
-            site2 = site1 + n
+        """ 
+        Loop over all bitstrings in the set A_l. i is the bitstring, site1 and site2 are the sets of indexes where the string
+        of operators contains a Z acording two:
+        D2l = sum_{i in A_l} tensor_product_{i in Al} Z(i)^Z(i+n), where ^ is kronecker product.
+        
+        PROBABLY PROBLEM HERE!
+        """
+        pauli_string_list = []
+        for bitstring_array in A_l:
+            for i in range(n):
+                if bitstring_array[i] == 1:
+                    pauli_string_list.append(Id)
+                if bitstring_array[i] == 0:
+                    pauli_string_list.append(Z)
 
-            # Define operators:
-            Z = jnp.array([[1, 0],
-                        [0, -1]])
-            I = jnp.eye(2)
-
-            # Build MPO tensors: each tensor is shaped (1, 1, 2, 2)
             mpo_tensors = []
             for site in range(L):
-                # Choose Z on the designated sites, I elsewhere:
                 op = Z if site in site1 or site in site2 else I
                 tensor = op.reshape(1, 2, 2) if site in [0, L - 1] else op.reshape(1, 1, 2, 2)
                 mpo_tensors.append(tensor)
 
-            # Create the MPO. Here, 'sites' and 'L' help label the tensor network.
             mpo = qtn.MatrixProductOperator(
                 mpo_tensors,
                 sites=range(L),
@@ -159,22 +166,34 @@ def Ommd(n, sigma):
 
 def MMD(x, y,Ommd, sigma, number_open_index, bond_dimension):
     """
-    samples and target are two Matrix Product States.
-    """
+    x and y are two Matrix Product States.
+    we want to compute the Tr(Ommd*(x^y)), since x and y are pure states, the expression semplfies as
+    the expectation value of Ommd on x and y. We have to reindex the tensors to match the indexes of the MPO (k and b by
+    default).
 
+    Schematically the structure of the TN is:
+    PSI and DATA            P-P-P-P-P-P D-D-D-D-D-D
+                            | | | | | | | | | | | |        
+    MPO                     O-O-O-O-O-O-O-O-O-O-O-O
+                            | | | | | | | | | | | |
+    PSI_CONJ and DATA_CONJ  p-p-p-p-p-p d-d-d-d-d-d
+
+    """
     x /= x.H @ x
     y /= y.H @ y
     rename_dict = {f'k{i}': f'k{i+number_open_index}' for i in range(number_open_index)}
     y.reindex_(rename_dict)
 
-    """
-    Building the MMD MPO. The default open indexes are k1, k2, ..., kn, b1, b2, ..., bn.
-    Then we can contract the MPO with the MPS and the bitstring state to get the loss function.
-    """
+    x_conj = x.H
+    rename_dict = {f'k{i}': f'b{i}' for i in range(number_open_index)}
+    x_conj.reindex_(rename_dict)
 
-    #Omm = Ommd(number_open_index, sigma)
-    loss = x & Ommd & y
-    # Here we should do the trace but we have a MPS, what happends then??
-    loss = loss @ loss.H
+    y_conj = y.H
+    rename_dict = {f'k{i}': f'b{i}' for i in range(number_open_index, 2*number_open_index)}
+    y_conj.reindex_(rename_dict)
+
+    loss = x & y & Ommd & x_conj.H & y_conj.H
+
+    loss = loss^...
 
     return loss
