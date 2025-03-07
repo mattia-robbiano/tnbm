@@ -1,9 +1,10 @@
+import sys
 import quimb
 import quimb.tensor as qtn
 import numpy as np
 import matplotlib.pyplot as plt
-from functions_numpy import *
-import sys
+sys.path.append('..')
+from functions import *
 
 """dataset of measurements in computational basis of a 2-qubit system
 |T|=4
@@ -28,14 +29,21 @@ training_tensor_network = qtn.TensorNetwork(training_tensors)
 """ Initializing psi as MPS to be trained
 """
 psi = qtn.MPS_rand_state(n, bond_dim=8)
-rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-psi.reindex_(rename_dict)
+#rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
+#psi.reindex_(rename_dict)
 for i, tensor in enumerate(psi):
     tensor.add_tag(f'psi{i}')
 
+""" Define kernel MPO, all tensors are 2x2 matrices node_matrix
+"""
+sigma = 0.09
+node_matrix = np.array([[1, np.exp(-(1/(2*sigma**2)))], [np.exp(-(1/(2*sigma**2))), 1]])
+kernel_tensors = [qtn.Tensor(data=node_matrix, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(n)]
+kernel = qtn.TensorNetwork(kernel_tensors)
+
 """ Full model
 """
-model = training_tensor_network & psi
+model = training_tensor_network & kernel & psi
 
 # region drawing
 """Drawing part
@@ -53,16 +61,16 @@ import matplotlib.cm as cm
 fix_positions = {f'sample{i}': (0, i) for i in range(n)}
 fix_positions['hyper'] = (-2, (n - 1) / 2)
 fix_positions.update({f'psi{i}': (2, i) for i in range(n)})
-
-colors = [mcolors.rgb2hex(cm.viridis(i / n)) for i in range(n)]
-custom_colors = {f'sample{i}': colors[i] for i in range(n)}
-custom_colors.update({f'psi{i}': colors[i] for i in range(n)})
+fix_positions.update({f'kernel{i}': (1, i) for i in range(n)})
 
 fig = model.draw(
-    color = [f'sample{i}' for i in range(n)] + [f'psi{i}' for i in range(n)],
+    color = [f'sample{i}' for i in range(n)] + [f'psi{i}' for i in range(n)] + [f'kernel{i}' for i in range(n)],
     fix=fix_positions,
     show_left_inds=True,
-    figsize=(8, 12)
+    show_tags=True,
+    node_size=2,
+    figsize=(8, 12),
+    return_fig=True
 )
 fig.savefig('tensor_network_plot.png', bbox_inches='tight')
 #endregion drawing
