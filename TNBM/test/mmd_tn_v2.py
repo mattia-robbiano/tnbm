@@ -44,9 +44,17 @@ for _ in range(100):
 
     """ Testing
     """
+    psi_conj = psi.H
+    rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
+    psi_conj.reindex_(rename_dict)
+
+    training_tensor_network_conj = training_tensor_network.H
+    rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
+    training_tensor_network_conj.reindex_(rename_dict)
+
     mix_term = (psi & kernel & training_tensor_network).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_q = (psi & kernel & psi.H).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network.H).contract(output_inds = [], optimize = 'auto-hq')
+    homogeneous_term_q = (psi & kernel & psi_conj).contract(output_inds = [], optimize = 'auto-hq')
+    homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_conj).contract(output_inds = [], optimize = 'auto-hq')
     mmd = homogeneous_term_q -2*mix_term  + homogeneous_term_p
     #draw_mmd_tensor_network(..., n)
     print(mmd)
