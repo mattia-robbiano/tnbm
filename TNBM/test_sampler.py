@@ -7,10 +7,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 seed = int(time.time())
-test = "GHZ"    # GHZ state
+test = "CARD"   # Cardinality
+#test = "GHZ"    # GHZ state
 #test = "BS"     # Bars and Stripes
 
-with open('results/tensor_network.pkl', 'rb') as f:
+with open('tensor_network.pkl', 'rb') as f:
     tn = pickle.load(f)
 
 if test == "BS":
@@ -27,9 +28,9 @@ if test == "BS":
         axes[i].set_title(f'Image {i+1}')
 
     plt.tight_layout()
-    plt.savefig("results/sampled_images.png")
+    plt.savefig("BS_sampled_images.png")
 
-elif test == "GHZ":
+elif test == "GHZ" or test == "CARD":
     num_samples = 1000
     samples = tn.sample(num_samples, seed)  # Get all samples at once
 
@@ -51,4 +52,4 @@ elif test == "GHZ":
     plt.title('Histogram of GHZ State Bitstrings')
     plt.xticks([])    
     plt.tight_layout()
-    plt.savefig("results/ghz_histogram.png")
+    plt.savefig("ghz_histogram.png")

@@ -17,8 +17,9 @@ def main():
 
     In our example we will have 2 tensors, each with 4 rows and 2 columns.
     """
-    n = 9
-    dataset = get_GHZ(n, 100)
+    n = 16
+    dataset = get_cardinality(n, 200, 6)
+
 
     measurements = [[data[i] for data in dataset] for i in range(n)]
     training_tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
@@ -94,7 +95,7 @@ def main():
     """
     Save the tensor network
     """
-    with open('./tensor_network.pkl', 'wb') as f:
+    with open('tensor_network.pkl', 'wb') as f:
         pickle.dump(psi_opt, f)
 
 
