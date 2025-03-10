@@ -18,7 +18,8 @@ def main():
     In our example we will have 2 tensors, each with 4 rows and 2 columns.
     """
     n = 9
-    dataset = get_bars_and_stripes(int(np.sqrt(n)))
+    dataset = get_GHZ(n, 100)
+
     measurements = [[data[i] for data in dataset] for i in range(n)]
     training_tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
     training_tensors = [qtn.Tensor(data=training_tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(n)]
@@ -84,14 +85,16 @@ def main():
     )
 
 
-    psi_opt = tnopt.optimize(1000)
+    psi_opt = tnopt.optimize(3000)
     fig, ax = tnopt.plot()
-    fig.savefig("results/plot.png")
+    fig.patch.set_facecolor('white')  # Set figure background to white
+    ax.set_facecolor('white')  # Set axes background to white
+    fig.savefig("plot.png", facecolor='white')
 
     """
     Save the tensor network
     """
-    with open('results/tensor_network.pkl', 'wb') as f:
+    with open('./tensor_network.pkl', 'wb') as f:
         pickle.dump(psi_opt, f)
 
 

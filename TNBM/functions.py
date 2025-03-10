@@ -28,6 +28,26 @@ def get_bars_and_stripes(n):
 
     return dataset
 
+def get_GHZ(state_dim, training_set_dim):
+    """
+    Function to generate GHZ state of dimension state_dim and training set of dimension training_set_dim
+    """
+def get_GHZ(state_dim, training_set_dim):
+    """
+    Function to generate GHZ state of dimension state_dim and training set of dimension training_set_dim.
+    The dataset will have half of the samples as all 0s and the other half as all 1s.
+    """
+    if training_set_dim % 2 != 0:
+        raise ValueError("training_set_dim must be an even number")
+
+    half_dim = training_set_dim // 2
+    zeros = jnp.zeros((half_dim, state_dim))
+    ones = jnp.ones((half_dim, state_dim))
+    training_set = jnp.vstack((zeros, ones))
+    training_set = jax.random.permutation(jax.random.PRNGKey(0), training_set, axis=0)
+
+    return training_set
+
 
 def print_bitstring_distribution(data):
 #
@@ -107,62 +127,62 @@ def Ommd(n, sigma):
     The Dl operator is a sum of all the MPOs that are the sum of all the Z operators on the sites of the bitstring.
     """
 
-    L = 2 * n
-    p_sigma = (1 - jnp.exp(-1/(2*sigma)))/2
-    Z = jnp.array([[1, 0 ],
-                   [0 ,-1]])
-    Id = jnp.eye(2)
+    #     L = 2 * n
+    #     p_sigma = (1 - jnp.exp(-1/(2*sigma)))/2
+    #     Z = jnp.array([[1, 0 ],
+    #                    [0 ,-1]])
+    #     Id = jnp.eye(2)
 
-    """ 
-    Sum over l from 1 to n, i am excluding 0 because i'm not sure how to treat it. For each l I am calculating the coefficient and the set A of all the bitstrings of length n with l 1s, (|A|=l)
-    """
-    Dl_list = []
-    for l in range(1, n+1):
+    #     """ 
+    #     Sum over l from 1 to n, i am excluding 0 because i'm not sure how to treat it. For each l I am calculating the coefficient and the set A of all the bitstrings of length n with l 1s, (|A|=l)
+    #     """
+    #     Dl_list = []
+    #     for l in range(1, n+1):
+            
+    #         coef = p_sigma**l * (1-p_sigma)**(n-l)
+    #         A_l = A(n, l)
+
+    #         """ 
+    #         Loop over all bitstrings in the set A_l. i is the bitstring, site1 and site2 are the sets of indexes where the string
+    #         of operators contains a Z acording two:
+    #         D2l = sum_{i in A_l} tensor_product_{i in Al} Z(i)^Z(i+n), where ^ is kronecker product.
+            
+    #         PROBABLY PROBLEM HERE!
+    #         """
+    #         pauli_string_list = []
+    #         for bitstring_array in A_l:
+    #             for i in range(n):
+    #                 if bitstring_array[i] == 1:
+    #                     pauli_string_list.append(Id)
+    #                 if bitstring_array[i] == 0:
+    #                     pauli_string_list.append(Z)
+
+    #             mpo_tensors = []
+    #             for site in range(L):
+    #                 op = Z if site in site1 or site in site2 else I
+    #                 tensor = op.reshape(1, 2, 2) if site in [0, L - 1] else op.reshape(1, 1, 2, 2)
+    #                 mpo_tensors.append(tensor)
+
+    #             mpo = qtn.MatrixProductOperator(
+    #                 mpo_tensors,
+    #                 sites=range(L),
+    #                 L=L,
+    #                 shape='lrud'
+    #             )
+    #             mpo_list.append(mpo)
+
+    #         # Sum all the MPOs
+    #         Dl = mpo_list[0]
+    #         for i in mpo_list[1:]:
+    #             Dl = Dl.add_MPO(i)
+            
+    #         Dl_list.append(coef*Dl)
+
+    #     O = Dl_list[0]
+    #     for i in Dl_list[1:]:
+    #         Dl = Dl.add_MPO(i)
         
-        coef = p_sigma**l * (1-p_sigma)**(n-l)
-        A_l = A(n, l)
-
-        """ 
-        Loop over all bitstrings in the set A_l. i is the bitstring, site1 and site2 are the sets of indexes where the string
-        of operators contains a Z acording two:
-        D2l = sum_{i in A_l} tensor_product_{i in Al} Z(i)^Z(i+n), where ^ is kronecker product.
-        
-        PROBABLY PROBLEM HERE!
-        """
-        pauli_string_list = []
-        for bitstring_array in A_l:
-            for i in range(n):
-                if bitstring_array[i] == 1:
-                    pauli_string_list.append(Id)
-                if bitstring_array[i] == 0:
-                    pauli_string_list.append(Z)
-
-            mpo_tensors = []
-            for site in range(L):
-                op = Z if site in site1 or site in site2 else I
-                tensor = op.reshape(1, 2, 2) if site in [0, L - 1] else op.reshape(1, 1, 2, 2)
-                mpo_tensors.append(tensor)
-
-            mpo = qtn.MatrixProductOperator(
-                mpo_tensors,
-                sites=range(L),
-                L=L,
-                shape='lrud'
-            )
-            mpo_list.append(mpo)
-
-        # Sum all the MPOs
-        Dl = mpo_list[0]
-        for i in mpo_list[1:]:
-            Dl = Dl.add_MPO(i)
-        
-        Dl_list.append(coef*Dl)
-
-    O = Dl_list[0]
-    for i in Dl_list[1:]:
-        Dl = Dl.add_MPO(i)
-    
-    return Dl
+    #     return Dl
 
 def MMD(x, y,Ommd, sigma, number_open_index, bond_dimension):
     """
