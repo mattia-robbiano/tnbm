@@ -124,23 +124,30 @@ def load_parameters(path):
     with open(path, "r") as f:
         config = json.load(f)
     SAMPLE_BITSTRING_DIMENSION = config['SAMPLE_BITSTRING_DIMENSION']
-    PRINT_TARGET_PDF = config['PRINT_TARGET_PDF']
+    MODE_DATASET = config['MODE_DATASET']
     DEVICE = config['DEVICE']
     EPOCHS = config['EPOCHS']
+    LOSS = config['LOSS']
+    MODE = config['MODE']
+    BOND_DIMENSION = config['BOND_DIMENSION']
+    SIGMA = config['SIGMA']
 
     jax.config.update("jax_platform_name", DEVICE)
 
     print()
     print("Configuration:")
     print(f"bitsting samples dimension: {SAMPLE_BITSTRING_DIMENSION}")
-    if math.sqrt(SAMPLE_BITSTRING_DIMENSION).is_integer() == False:
-        raise ValueError("bitstring samples dimension must be a perfect square!")
     print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))*2-2}")
-    print(f"print target probability distribution: {PRINT_TARGET_PDF}")
+    print(f"Dataset: {MODE_DATASET}")
     print(f"Using: {jax.devices()}")
+    print(f"Number of epochs: {EPOCHS}")
+    print(f"Loss function: {LOSS}")
+    print(f"Mode: {MODE}")
+    print(f"Bond dimension: {BOND_DIMENSION}")
+    print(f"Sigma: {SIGMA}")
     print()
 
-    return SAMPLE_BITSTRING_DIMENSION, PRINT_TARGET_PDF, DEVICE, EPOCHS
+    return SAMPLE_BITSTRING_DIMENSION, MODE_DATASET, DEVICE, EPOCHS, LOSS, MODE, BOND_DIMENSION, SIGMA
 
 def A(n,l):
     """

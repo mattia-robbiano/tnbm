@@ -1,6 +1,10 @@
 {
     "SAMPLE_BITSTRING_DIMENSION": 9,
-    "PRINT_TARGET_PDF": false,
+    "MODE_DATASET": "cardinality",
     "DEVICE": "gpu",
-    "EPOCHS": 10
+    "EPOCHS": 1000,
+    "LOSS": "mmd",
+    "MODE": "variance",
+    "BOND_DIMENSION": 2,
+    "SIGMA": 0.09
 }
