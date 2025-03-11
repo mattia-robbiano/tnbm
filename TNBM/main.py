@@ -138,14 +138,18 @@ def main():
             for b in range(2, 21):
                 for n in range(2, 20):
                     training_tensor_network = mps_trainingset_builder(n, mode_dataset)
-                    psi = qtn.MPS_rand_state(n, bond_dim=b)
-                    for i, tensor in enumerate(psi):
-                        tensor.add_tag(f'psi{i}')
-                    kernel = loss_mpo_builder(loss, sigma, n)
-
-                    mean = np.mean([loss_fn(psi, training_tensor_network, kernel, loss, n) for _ in range(100)])
-                    variances = [(loss_fn(psi, training_tensor_network, kernel, loss, n) - mean)**2 for _ in range(100)]
-                    variance = np.mean(variances)
+                    loss_values = []
+                    
+                    for k in range(100):
+                        psi = qtn.MPS_rand_state(n, bond_dim=b)
+                        for i, tensor in enumerate(psi):
+                            tensor.add_tag(f'psi{i}')
+                        
+                        kernel = loss_mpo_builder(loss, sigma, n)
+                        loss_values.append(loss_fn(psi,training_tensor_network,kernel, loss,n))
+                    
+                    #mean = np.mean(loss_values)
+                    variance = np.var(loss_values)
 
                     if variance == 0: 
                         continue
