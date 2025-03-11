@@ -23,7 +23,7 @@ def sample_mps_builder(dataset, dimension):
         training_tensor_network/=training_tensor_network.norm()
         return training_tensor_network
 
-def loss_mpo_builder(loss, sigma, n):
+def loss_mpo_builder(loss, sigma, dimension):
     """ Define kernel MPO, all tensors are 2x2 matrices node_matrix, depending on the loss function user wants  to use
     """
     if loss == 'mmd' or loss == 'kqf':
@@ -38,16 +38,16 @@ def loss_mpo_builder(loss, sigma, n):
         print("DKL loss is not implemented yet")
         return
     
-def mps_trainingset_builder(n, mode_dataset):
-    if mode_dataset == "cardinality":
-        dataset = get_cardinality(n, 200, int(n/2) - 1)
-    elif mode_dataset == "BS":
-        dataset = get_bars_and_stripes(int(np.sqrt(n)))
-        if math.sqrt(n).is_integer() == False:
+def mps_trainingset_builder(dimension, default_dataset):
+    if default_dataset == "cardinality":
+        dataset = get_cardinality(dimension, 200, int(dimension/2) - 1)
+    elif default_dataset == "BS":
+        dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
+        if math.sqrt(dimension).is_integer() == False:
             raise ValueError("bitstring samples dimension must be a perfect square!")
     else:
-        raise ValueError("dataset not available: "+mode_dataset)
-    training_tensor_network = sample_mps_builder(dataset, n)
+        raise ValueError("dataset not available: "+default_dataset)
+    training_tensor_network = sample_mps_builder(dataset, dimension)
 
     return training_tensor_network
 
@@ -135,29 +135,35 @@ def main():
 
     elif mode == "variance":
         with open('variance_results.txt', 'a') as f:
-            for b in range(2, 21):
+            bond_dimension_list = [10, 100, 400, 600, 1000]
+
+            for b in bond_dimension_list:
                 for n in range(2, 20):
-                    training_tensor_network = mps_trainingset_builder(n, mode_dataset)
+
+
+                    """ building the training set mps with standard cardinality dataset
+                        and the kernel MPO for the loss function
+                    """
+                    training_tensor_network = mps_trainingset_builder(dimension=n, default_dataset = "cardinality")
+                    kernel = loss_mpo_builder(loss="mmd", sigma=sigma, dimension = n)
+
+
+                    """ once initialized the dataset state for n qubits, we can now sample the psi state
+                        at random and compute the variance of the loss function
+                    """
                     loss_values = []
-                    
                     for k in range(100):
                         psi = qtn.MPS_rand_state(n, bond_dim=b)
                         for i, tensor in enumerate(psi):
                             tensor.add_tag(f'psi{i}')
-                        
-                        kernel = loss_mpo_builder(loss, sigma, n)
                         loss_values.append(loss_fn(psi,training_tensor_network,kernel, loss,n))
                     
-                    #mean = np.mean(loss_values)
+                    """ computing variance of the loss function for the given bond dimension and number of qubits
+                    """
                     variance = np.var(loss_values)
-
-                    if variance == 0: 
-                        continue
-
                     print(f"Variance for n = {n} and bond dimension {b} is {variance}")
                     f.write(f'Variance for n = {n} and bond dimension {b} is {variance}\n')
 
                 
-
 if __name__ == "__main__":
     main()
