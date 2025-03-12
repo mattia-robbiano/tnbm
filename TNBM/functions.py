@@ -116,7 +116,7 @@ def get_distribution(data,bitstring_dimension):
 
     return py
 
-def load_parameters(path):
+def load_parameters(path, verbose = True):
     """
     Importing configuration file and IO
     DEVICE = "cpu" or "gpu" (strings)
@@ -134,18 +134,19 @@ def load_parameters(path):
 
     jax.config.update("jax_platform_name", DEVICE)
 
-    print()
-    print("Configuration:")
-    print(f"bitsting samples dimension: {SAMPLE_BITSTRING_DIMENSION}")
-    print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))*2-2}")
-    print(f"Dataset: {MODE_DATASET}")
-    print(f"Using: {jax.devices()}")
-    print(f"Number of epochs: {EPOCHS}")
-    print(f"Loss function: {LOSS}")
-    print(f"Mode: {MODE}")
-    print(f"Bond dimension: {BOND_DIMENSION}")
-    print(f"Sigma: {SIGMA}")
-    print()
+    if verbose:
+        print()
+        print("Configuration:")
+        print(f"bitsting samples dimension: {SAMPLE_BITSTRING_DIMENSION}")
+        print(f"number of different samples:{2**(int(math.sqrt(SAMPLE_BITSTRING_DIMENSION)))*2-2}")
+        print(f"Dataset: {MODE_DATASET}")
+        print(f"Using: {jax.devices()}")
+        print(f"Number of epochs: {EPOCHS}")
+        print(f"Loss function: {LOSS}")
+        print(f"Mode: {MODE}")
+        print(f"Bond dimension: {BOND_DIMENSION}")
+        print(f"Sigma: {SIGMA}")
+        print()
 
     return SAMPLE_BITSTRING_DIMENSION, MODE_DATASET, DEVICE, EPOCHS, LOSS, MODE, BOND_DIMENSION, SIGMA
 

@@ -5,6 +5,7 @@ import quimb
 import quimb.tensor as qtn
 import numpy as np
 import matplotlib.pyplot as plt
+from main import loss_fn, loss_mpo_builder, dataset_mps_builder
 
 
 def plot_BS(num_images=10, num_columns = 5):
@@ -79,21 +80,16 @@ def plot_numbers_from_files(file1, file2):
 
     # Plot results
     plt.figure(figsize=(10, 5))
-    plt.plot(numbers1, label="MMD", linestyle="-", linewidth=1, marker="")
-    plt.plot(numbers2, label="LQF", linestyle="-", linewidth=1, marker="")    
-    plt.xlabel("Line Number")
-    plt.ylabel("Extracted Value")
-    plt.title("Loss plot - MMD vs LQF")
+    plt.plot(numbers1, label=file1, linestyle="-", linewidth=1, marker="")
+    plt.plot(numbers2, label=file2, linestyle="-", linewidth=1, marker="")    
+    plt.xlabel("epochs")
+    plt.ylabel("MMD")
+    plt.yscale('log')  # Set y-axis to log scale
+    plt.title("Loss plot - dag vs nodag")
     plt.legend()
     plt.grid()
     plt.savefig("loss_plot.png")
 
-import matplotlib.pyplot as plt
-import numpy as np
-import re
-
-import matplotlib.pyplot as plt
-import numpy as np
 import re
 
 def plot_variance(filename, bond_dims=None):
@@ -138,3 +134,14 @@ def plot_variance(filename, bond_dims=None):
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.xticks(range(min(ns), max(ns) + 1))
     plt.savefig("variance_plot.png")
+
+def loss(tn = None):
+    if tn is None:
+        with open('tensor_network.pkl', 'rb') as f:
+            tn = pickle.load(f)
+    mpo = loss_mpo_builder(loss= "mmd", sigma = 0.09, dimension=9)
+    data = dataset_mps_builder(dimension=9, default_dataset="BS")
+    loss = loss_fn(psi=tn, training_tensor_network=data, kernel=mpo)
+    return loss 
+
+    

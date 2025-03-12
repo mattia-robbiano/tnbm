@@ -1,11 +1,12 @@
 import sys
 import pickle
-import quimb
-import quimb.tensor as qtn
 import numpy as np
-import matplotlib.pyplot as plt
+import quimb.tensor as qtn
 sys.path.append('..')
 from functions import *
+
+plot_opt = False
+savetn_opt = False
 
 
 def loss_mpo_builder(loss, sigma, dimension):
@@ -55,17 +56,17 @@ def loss_fn(psi,training_tensor_network,kernel):
     """ Define loss function as model contraction. Not adapted for DKL and LQF loss functions yet
     """     
     n = psi.L
-    psi_conj = psi.H
+    psi_copy = psi.copy()
     rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-    psi_conj.reindex_(rename_dict)
+    psi_copy.reindex_(rename_dict)
 
-    training_tensor_network_conj = training_tensor_network.H
+    training_tensor_network_copy = training_tensor_network.copy()
     rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-    training_tensor_network_conj.reindex_(rename_dict)
+    training_tensor_network_copy.reindex_(rename_dict)
 
     mix_term = (psi & kernel & training_tensor_network).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_q = (psi & kernel & psi_conj).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_conj).contract(output_inds = [], optimize = 'auto-hq')
+    homogeneous_term_q = (psi & kernel & psi_copy).contract(output_inds = [], optimize = 'auto-hq')
+    homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_copy).contract(output_inds = [], optimize = 'auto-hq')
     mmd = homogeneous_term_q -2*mix_term  + homogeneous_term_p
     loss_value = mmd
 
@@ -73,7 +74,7 @@ def loss_fn(psi,training_tensor_network,kernel):
 
 def main():
     """ Loading parameters"""
-    sample_bitstring_dimension, mode_dataset, device, epochs, loss, mode, bond_dimension, sigma = load_parameters("parameters.json")
+    sample_bitstring_dimension, mode_dataset, device, epochs, loss, mode, bond_dimension, sigma = load_parameters("parameters.json", verbose = False)
 
     if mode == "training":
         """create a hyperindexed representation of training set as a quimb tensor network
@@ -126,12 +127,18 @@ def main():
         )
 
         psi_opt = tnopt.optimize(epochs)
-        fig, ax = tnopt.plot()
-        fig.patch.set_facecolor('white')  # Set figure background to white
-        ax.set_facecolor('white')  # Set axes background to white
-        fig.savefig("plot.png", facecolor='white')
-        with open('tensor_network.pkl', 'wb') as f:
-            pickle.dump(psi_opt, f)
+
+        if plot_opt == True:
+            fig, ax = tnopt.plot()
+            fig.patch.set_facecolor('white')  # Set figure background to white
+            ax.set_facecolor('white')  # Set axes background to white
+            fig.savefig("plot.png", facecolor='white')
+
+        if savetn_opt == True:
+            with open('tensor_network.pkl', 'wb') as f:
+                pickle.dump(psi_opt, f)
+        else:
+            return psi_opt
 
 
     elif mode == "variance":
