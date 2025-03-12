@@ -134,7 +134,7 @@ def plot_variance(filename, bond_dims=None):
     plt.xlabel('n')
     plt.ylabel('MMD Variance')
     plt.legend()
-    plt.title('Loss concentration - MMD - Cardinality Test')
+    plt.title('Loss concentration - MMD - Bars and Stripes')
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.xticks(range(min(ns), max(ns) + 1))
     plt.savefig("variance_plot.png")

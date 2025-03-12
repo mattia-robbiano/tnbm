@@ -1,10 +1,10 @@
 {
     "SAMPLE_BITSTRING_DIMENSION": 9,
-    "MODE_DATASET": "cardinality",
+    "MODE_DATASET": "BS",
     "DEVICE": "gpu",
-    "EPOCHS": 1000,
+    "EPOCHS": 3000,
     "LOSS": "mmd",
     "MODE": "variance",
-    "BOND_DIMENSION": 2,
+    "BOND_DIMENSION": 10,
     "SIGMA": 0.09
 }
