@@ -4,31 +4,32 @@ import numpy as np
 import quimb.tensor as qtn
 sys.path.append('..')
 from functions import *
+from jax import config
+jax.config.update("jax_enable_x64", True)
 
-plot_opt = False
-savetn_opt = False
+
+plot_opt = True
+savetn_opt = True
 
 
 def loss_mpo_builder(loss, sigma, dimension):
     """ Define kernel MPO, all tensors are 2x2 matrices node_matrix, depending on the loss function user wants  to use
     """
-    if loss == 'mmd' or loss == 'kqf':
-        if loss == 'lqf':
+    if loss == 'lqf':
             node_matrix = np.array([[1, 0], [0, (dimension-1)/dimension]])
-        else:
+            node_matrix /= np.linalg.norm(node_matrix)
+    elif loss == 'mmd':
             node_matrix = np.array([[1, np.exp(-(1/(2*sigma**2)))], [np.exp(-(1/(2*sigma**2))), 1]])
-        
-        node_matrix /= np.linalg.norm(node_matrix)
-        tensors = [qtn.Tensor(data=node_matrix, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(dimension)]
-        mpo = qtn.TensorNetwork(tensors)
-
-        return mpo
-    
+            node_matrix /= np.linalg.norm(node_matrix)
     elif loss == 'dkl':
-        print("DKL loss is not implemented yet")
-        return
+        node_matrix = np.array([[1, 0], [0, 1]])
     
-def dataset_mps_builder(dimension, default_dataset="None", dataset=None):
+    tensors = [qtn.Tensor(data=node_matrix, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(dimension)]
+    mpo = qtn.TensorNetwork(tensors)
+
+    return mpo
+    
+def dataset_mps_builder(dimension, default_dataset="None", hyper = True, dataset=None):
     if default_dataset == "cardinality":
         dataset = get_cardinality(dimension, 200, int(dimension/2) - 1)
 
@@ -44,31 +45,62 @@ def dataset_mps_builder(dimension, default_dataset="None", dataset=None):
     else:
         raise ValueError("dataset not available in defaults: "+default_dataset)
     
-    measurements = [[data[i] for data in dataset] for i in range(dimension)]
-    tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
-    tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
-    tensor_network = qtn.TensorNetwork(tensors)
-    tensor_network/=tensor_network.norm()
-    
-    return tensor_network
+    if hyper:
+        """ In this case the dataset is a list of hyperindexed quimb tensor networks
+        """
+        measurements = [[data[i] for data in dataset] for i in range(dimension)]
+        tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
+        tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
+        tensor_network = qtn.TensorNetwork(tensors)
+        tensor_network_dataset/=tensor_network.norm()
 
-def loss_fn(psi,training_tensor_network,kernel):
+    else:
+        """ In this case the dataset is a list of bitstrings, we will convert it to a list of MPS
+        """
+        tensor_network_dataset = []
+        for data in dataset:
+            state = qtn.MPS_computational_state(data)
+            state /= state.norm()
+            tensor_network_dataset.append(state)
+
+    return tensor_network_dataset
+
+def loss_fn(psi, training_tensor_network, kernel, method):
     """ Define loss function as model contraction. Not adapted for DKL and LQF loss functions yet
     """     
     n = psi.L
-    psi_copy = psi.copy()
-    rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-    psi_copy.reindex_(rename_dict)
+    if method == "mmd":
+        psi_copy = psi.copy()
+        rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
+        psi_copy.reindex_(rename_dict)
 
-    training_tensor_network_copy = training_tensor_network.copy()
-    rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-    training_tensor_network_copy.reindex_(rename_dict)
+        training_tensor_network_copy = training_tensor_network.copy()
+        rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
+        training_tensor_network_copy.reindex_(rename_dict)
 
-    mix_term = (psi & kernel & training_tensor_network).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_q = (psi & kernel & psi_copy).contract(output_inds = [], optimize = 'auto-hq')
-    homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_copy).contract(output_inds = [], optimize = 'auto-hq')
-    mmd = homogeneous_term_q -2*mix_term  + homogeneous_term_p
-    loss_value = mmd
+        mix_term = (psi & kernel & training_tensor_network).contract(output_inds = [], optimize = 'auto-hq')
+        homogeneous_term_q = (psi & kernel & psi_copy).contract(output_inds = [], optimize = 'auto-hq')
+        homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_copy).contract(output_inds = [], optimize = 'auto-hq')
+        mmd = homogeneous_term_q -2*mix_term  + homogeneous_term_p
+        loss_value = mmd
+
+    elif method == "dkl":
+        """ kernel here is an mpo with all tensors being identity matrices
+        """
+        psi /= psi.norm()
+        q = 0
+        for data in training_tensor_network:
+            contr = (psi & data).contract(output_inds = [], optimize = 'auto-hq')
+            q -= jnp.log(abs(contr)**2)
+
+        loss_value = q / len(training_tensor_network)
+
+    elif method == "lqf":
+        #not implemented yet
+        pass
+
+    else:
+        raise ValueError("loss function not available: "+method)
 
     return loss_value
 
@@ -91,8 +123,12 @@ def main():
         """ Building dataset
         """
         n = sample_bitstring_dimension
-        training_tensor_network = dataset_mps_builder(n, mode_dataset)
-
+        training_tensor_network = dataset_mps_builder(dimension = n, default_dataset=mode_dataset, hyper=False, dataset=None)
+        
+        if loss == "dkl":
+            for data in training_tensor_network:
+                data.reindex_({f'cbase{i}': f'k{i}' for i in range(n)})
+                data.add_tag('data')
 
         """ Initializing psi as MPS to be trained
         """
@@ -102,7 +138,7 @@ def main():
 
         """ Building kernel MPO for the loss function
         """
-        kernel = loss_mpo_builder(loss= loss, sigma = sigma, dimension=n)
+        kernel = loss_mpo_builder(loss= loss, sigma= sigma, dimension= n)
 
         tnopt = qtn.TNOptimizer(
             # the tensor network we want to optimize
@@ -116,7 +152,7 @@ def main():
             loss_constants={"training_tensor_network": training_tensor_network, "kernel": kernel},
 
             # options
-            #loss_kwargs={'loss': loss, 'n': n},
+            loss_kwargs={"method": loss},
 
             # the underlying algorithm to use for the optimization
             # 'l-bfgs-b' is the default and often good for fast initial progress
@@ -130,8 +166,8 @@ def main():
 
         if plot_opt == True:
             fig, ax = tnopt.plot()
-            fig.patch.set_facecolor('white')  # Set figure background to white
-            ax.set_facecolor('white')  # Set axes background to white
+            fig.patch.set_facecolor('white')
+            ax.set_facecolor('white')
             fig.savefig("plot.png", facecolor='white')
 
         if savetn_opt == True:

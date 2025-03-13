@@ -20,7 +20,7 @@ def plot_BS(num_images=10, num_columns = 5):
     axes = axes.flatten()
 
     for i, b in enumerate(tn.sample(num_images, seed)):
-        arr = np.array(b[0]).reshape((3, 3))
+        arr = np.array(b[0]).reshape((5, 5))
         axes[i].imshow(arr, cmap='gray', interpolation='nearest')
         axes[i].set_title(f'Image {i+1}')
 

@@ -1,10 +1,10 @@
 {
-    "SAMPLE_BITSTRING_DIMENSION": 9,
+    "SAMPLE_BITSTRING_DIMENSION": 25,
     "MODE_DATASET": "BS",
     "DEVICE": "gpu",
     "EPOCHS": 2000,
-    "LOSS": "mmd",
+    "LOSS": "dkl",
     "MODE": "training",
-    "BOND_DIMENSION": 10,
+    "BOND_DIMENSION": 8,
     "SIGMA": 0.09
 }
