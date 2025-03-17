@@ -1,5 +1,5 @@
 import time
-
+import re
 import pickle
 import quimb
 import quimb.tensor as qtn
@@ -20,13 +20,12 @@ def plot_BS(num_images=10, num_columns = 5):
     axes = axes.flatten()
 
     for i, b in enumerate(tn.sample(num_images, seed)):
-        arr = np.array(b[0]).reshape((5, 5))
+        arr = np.array(b[0]).reshape((8, 8))
         axes[i].imshow(arr, cmap='gray', interpolation='nearest')
         axes[i].set_title(f'Image {i+1}')
 
     plt.tight_layout()
     plt.savefig("BS_sampled_images.png")
-
 
 def plot_histogram(num_samples=1000):
 
@@ -55,8 +54,6 @@ def plot_histogram(num_samples=1000):
     plt.xticks([])    
     plt.tight_layout()
     plt.savefig("ghz_histogram.png")
-
-import re
 
 def extract_first_unsigned_number(s):
     match = re.search(r"\d*\.\d+|\d+", s)
@@ -89,8 +86,6 @@ def plot_numbers_from_files(file1, file2):
     plt.legend()
     plt.grid()
     plt.savefig("loss_plot.png")
-
-import re
 
 def plot_variance(filename, bond_dims=None):
     """

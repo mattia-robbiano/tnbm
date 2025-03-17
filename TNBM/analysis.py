@@ -1,6 +1,10 @@
 from postprocessing import *
+from functions import *
 from main import main
 import matplotlib.pyplot as plt
+
+# dataset = get_ising(8)
+# print(dataset.shape)
 
 plot_BS()
 

@@ -7,7 +7,7 @@ from functions import *
 from jax import config
 jax.config.update("jax_enable_x64", True)
 
-
+# Parameters to be loaded from a json file soon :)
 plot_opt = True
 savetn_opt = True
 
@@ -32,16 +32,15 @@ def loss_mpo_builder(loss, sigma, dimension):
 def dataset_mps_builder(dimension, default_dataset="None", hyper = True, dataset=None):
     if default_dataset == "cardinality":
         dataset = get_cardinality(dimension, 200, int(dimension/2) - 1)
-
     elif default_dataset == "BS":
         dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
         if math.sqrt(dimension).is_integer() == False:
             raise ValueError("bitstring samples dimension must be a perfect square!")
-
+    elif default_dataset == "ising":
+        dataset = get_ising(dimension,20)
     elif default_dataset == "None":
         if dataset is None:
             raise ValueError("dataset must be provided!")
-
     else:
         raise ValueError("dataset not available in defaults: "+default_dataset)
     
@@ -52,7 +51,7 @@ def dataset_mps_builder(dimension, default_dataset="None", hyper = True, dataset
         tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
         tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
         tensor_network = qtn.TensorNetwork(tensors)
-        tensor_network_dataset/=tensor_network.norm()
+        tensor_network_dataset = tensor_network/tensor_network.norm()
 
     else:
         """ In this case the dataset is a list of bitstrings, we will convert it to a list of MPS
@@ -123,8 +122,8 @@ def main():
         """ Building dataset
         """
         n = sample_bitstring_dimension
-        training_tensor_network = dataset_mps_builder(dimension = n, default_dataset=mode_dataset, hyper=False, dataset=None)
-        
+        training_tensor_network = dataset_mps_builder(dimension = n, default_dataset=mode_dataset, hyper=True, dataset=None)
+
         if loss == "dkl":
             for data in training_tensor_network:
                 data.reindex_({f'cbase{i}': f'k{i}' for i in range(n)})
@@ -205,7 +204,6 @@ def main():
                     variance = np.var(loss_values)
                     print(f"Variance for n = {n} and bond dimension {b} is {variance}")
                     f.write(f'Variance for n = {n} and bond dimension {b} is {variance}\n')
-
 
 if __name__ == "__main__":
     main()
