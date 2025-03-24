@@ -8,24 +8,32 @@ import matplotlib.pyplot as plt
 from main import loss_fn, loss_mpo_builder, dataset_mps_builder
 
 
-def plot_BS(num_images=10, num_columns = 5):
-
+def plot_BS(PATH, num_images=10, num_columns = 5):
+    
+    
     seed = int(time.time())
 
-    with open('tensor_network.pkl', 'rb') as f:
+    # Extract model information from the PATH
+    filename = PATH.split('/')[-1]
+    parts = filename.split('_')
+    loss_function = parts[0]
+    dataset = parts[1]
+    num_qubits = float(parts[2].replace('q', ''))
+    bond_dimension = int(parts[3].replace('b.pkl', ''))
+
+    with open(PATH, 'rb') as f:
         tn = pickle.load(f) 
-
     fig, axes = plt.subplots(2, num_columns, figsize=(15, 6))
-
     axes = axes.flatten()
 
     for i, b in enumerate(tn.sample(num_images, seed)):
-        arr = np.array(b[0]).reshape((8, 8))
+        arr = np.array(b[0]).reshape((int(np.sqrt(num_qubits)), int(np.sqrt(num_qubits))))
         axes[i].imshow(arr, cmap='gray', interpolation='nearest')
         axes[i].set_title(f'Image {i+1}')
 
-    plt.tight_layout()
-    plt.savefig("BS_sampled_images.png")
+    plt.suptitle(f'Samples - {loss_function} - {dataset} - {num_qubits} qubits - Bond dim {bond_dimension}', fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to make room for the title
+    plt.savefig("samples"+ "_" +loss_function + "_" + dataset + "_" + str(num_qubits) + "q_" + str(bond_dimension) + "b.png")
 
 def plot_histogram(num_samples=1000):
 
@@ -59,12 +67,32 @@ def extract_first_unsigned_number(s):
     match = re.search(r"\d*\.\d+|\d+", s)
     return float(match.group(0)) if match else None 
 
-def plot_numbers_from_files(file1, file2):
+def plot_loss(file1, file2):
+    
+
+    # Extract model information from the file paths
+    def extract_info(file_path):
+        filename = file_path.split('/')[-1]
+        parts = filename.split('_')
+        loss_function = parts[0]
+        dataset = parts[1]
+        num_qubits = float(parts[2].replace('q', ''))
+        bond_dimension = int(parts[3].replace('b.out', ''))
+        return loss_function, dataset, num_qubits, bond_dimension
+
+    loss_function1, dataset1, num_qubits1, bond_dimension1 = extract_info(file1)
+    loss_function2, dataset2, num_qubits2, bond_dimension2 = extract_info(file2)
+
     """Reads two files, extracts numbers from each line, and plots them for comparison."""
     numbers1, numbers2 = [], []
     max_lines = 1000
 
     with open(file1, 'r') as f1, open(file2, 'r') as f2:
+        # Skip first 2 lines
+        for _ in range(2):
+            next(f1)
+            next(f2)
+        
         for line1, line2 in zip(f1, f2):
             if len(numbers1) >= max_lines:
                 break
@@ -74,18 +102,24 @@ def plot_numbers_from_files(file1, file2):
             if num1 is not None and num2 is not None:
                 numbers1.append(num1)
                 numbers2.append(num2)
-
     # Plot results
     plt.figure(figsize=(10, 5))
     plt.plot(numbers1, label=file1, linestyle="-", linewidth=1, marker="")
-    plt.plot(numbers2, label=file2, linestyle="-", linewidth=1, marker="")    
+    if file1 != file2:
+        plt.plot(numbers2, label=file2, linestyle="-", linewidth=1, marker="")    
     plt.xlabel("epochs")
     plt.ylabel("MMD")
     plt.yscale('log')  # Set y-axis to log scale
-    plt.title("Loss plot - dag vs nodag")
+    if file1 == file2:
+        plt.title(f"Loss - {loss_function1} - {dataset1} - {num_qubits1} qubits - Bond dim {bond_dimension1}")
+    else:
+        plt.title(f"Loss - {loss_function1} - {dataset1} - {num_qubits1} qubits - Bond dim {bond_dimension1} vs {loss_function2} - {dataset2} - {num_qubits2} qubits - Bond dim {bond_dimension2}")
     plt.legend()
     plt.grid()
-    plt.savefig("loss_plot.png")
+    if file1 == file2:
+        plt.savefig(f"loss_{loss_function1}_{dataset1}_{num_qubits1}q_{bond_dimension1}b.png")
+    else:
+        plt.savefig(f"loss_{loss_function1}_{dataset1}_{num_qubits1}q_{bond_dimension1}b_vs_{loss_function2}_{dataset2}_{num_qubits2}q_{bond_dimension2}b.png")
 
 def plot_variance(filename, bond_dims=None):
     """
