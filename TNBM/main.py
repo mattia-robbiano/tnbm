@@ -7,10 +7,9 @@ from functions import *
 from jax import config
 jax.config.update("jax_enable_x64", True)
 
-# Parameters to be loaded from a json file soon :)
-plot_opt = False
+# TODO Parameters to be loaded from a json file
+plot_opt = True
 savetn_opt = True
-
 
 def builder_mpo_loss(method, sigma, dimension):
     """ Define kernel MPO, all tensors are 2x2 matrices node_matrix, depending on the loss function user wants  to use
@@ -74,8 +73,10 @@ def builder_mps_dataset(dimension, training_dataset, hyper = True):
         measurements = [[data[i] for data in dataset] for i in range(dimension)]
         tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
         tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
-        tensor_network = qtn.TensorNetwork(tensors)
-        tensor_network_dataset = tensor_network/tensor_network.norm()
+        tensor_network_dataset = qtn.TensorNetwork(tensors)
+        for i in range(dimension):
+            x = tensor_network_dataset.isel({'hyper': i}) 
+            x = x/x.norm()
     
     else:
         """ In this case the dataset is a list of bitstrings, we will convert it to a list of MPS
@@ -110,7 +111,7 @@ def loss_fn(psi, training_tensor_network, kernel, method):
       training data, where loss is implemented via a kernel tensor network, to be calculated externally.
     - For the "dkl" method, the loss is computed as the Kullback-Leibler divergence between the psi state and 
       the training data, where the loss is reconducted to the sum of the logs of the inner products between the psi
-      state and the data states.
+      state and the data states. Basically a Fidelity loss.
     """
     n = psi.L
     
@@ -129,18 +130,22 @@ def loss_fn(psi, training_tensor_network, kernel, method):
         loss_value = homogeneous_term_q -2*mix_term  + homogeneous_term_p
 
     elif method == "dkl":
-        psi /= psi.norm()
         loss_value = 0
-        for data in training_tensor_network:
-            contr = (psi & data).contract(output_inds = [], optimize = 'auto-hq')
-            loss_value -= jnp.log(abs(contr)**2)
-
-        loss_value = loss_value / len(training_tensor_network)
-
+        for i in range(training_tensor_network.ind_size('hyper')):
+            x = training_tensor_network.isel({'hyper': i}).copy()
+            qx = abs((psi & x).contract(output_inds = [], optimize = 'auto-hq'))**2+ 10**-8
+            px = 1/training_tensor_network.ind_size('hyper')+ 10**-8
+            loss_value += px*jnp.log(px/qx)
+        loss_value = loss_value
+            
     else:
         raise ValueError("loss function not available: "+method)
 
     return loss_value
+
+def norm_fn(psi):
+    psi /= psi.norm()
+    return psi
 
 def main():
     """Main function to execute the training or variance computation based on the mode specified in the parameters.
@@ -162,48 +167,57 @@ def main():
     - TODO The function, for now, also assumes the presence of certain global variables like plot_opt and savetn_opt, makes sense to put them in jason? .
 """
 
-    sample_bitstring_dimension, mode_dataset, device, epochs, loss, mode, bond_dimension, sigma = load_parameters("parameters.json", verbose = False)
+    sample_bitstring_dimension, mode_dataset, epochs, loss, mode, bond_dimension, sigma, fidelity_opt  = load_parameters("parameters.json", verbose = False)
 
     if mode == "training":
 
-        if loss == "mmd":
-            training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset, hyper=True)
-        else:
-            training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset, hyper=False)
-            for data in training_tensor_network:
-                data.reindex_({f'cbase{i}': f'k{i}' for i in range(sample_bitstring_dimension)})
-                data.add_tag('data')
+        training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset, hyper=True)
 
         psi = qtn.MPS_rand_state(sample_bitstring_dimension, bond_dim=bond_dimension)
         for i, tensor in enumerate(psi):
             tensor.add_tag(f'psi{i}')
         psi /= psi.norm()
 
-        kernel = builder_mpo_loss(method= loss, sigma= sigma, dimension= sample_bitstring_dimension)
+        kernel = builder_mpo_loss(method= loss, sigma= sigma, dimension= 
+        sample_bitstring_dimension)
         
+        # for i in range(training_tensor_network.ind_size('hyper')):
+        #     x = training_tensor_network.isel({'hyper': i})
+        #     if x.norm() != 1:
+        #         print(f"Norm of x {i} is {x.norm()}")    
+        # sys.exit()    
+
+########### Optimization ###########
+        def FidelityCallback(tnopt):
+            state = tnopt.get_tn_opt()
+            fidelity_test = loss_fn(state, training_tensor_network, kernel, method='dkl')
+            with open('fidelity_test.txt', 'a') as f:
+                f.write(f"Fidelity test: {fidelity_test}\n")
+
         tnopt = qtn.TNOptimizer(
             # the tensor network we want to optimize
-            psi,
-
+            tn = psi,
             # the functions specfying the loss and normalization
             loss_fn=loss_fn,
-
+            norm_fn=norm_fn,
             # we specify constants so that the arguments can be converted
             # to the  desired autodiff backend automatically
             loss_constants={"training_tensor_network": training_tensor_network, "kernel": kernel},
-
             # options
             loss_kwargs={"method": loss},
-
             # the underlying algorithm to use for the optimization
             # 'l-bfgs-b' is the default and often good for fast initial progress
             optimizer="adam",
-
             # which gradient computation backend to use
             autodiff_backend="jax",
+            # callback function to execute after every optimization step
+            callback=FidelityCallback if fidelity_opt == True else None,
         )
 
         psi_opt = tnopt.optimize(epochs)
+        
+        print(psi_opt.norm())
+        print()
 
         if plot_opt == True:
             fig, ax = tnopt.plot()
