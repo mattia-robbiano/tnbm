@@ -132,6 +132,7 @@ def load_parameters(path, verbose = True):
     MODE = config['MODE']
     BOND_DIMENSION = config['BOND_DIMENSION']
     SIGMA = config['SIGMA']
+    FIDELITY = config['FIDELITY']
 
     jax.config.update("jax_platform_name", DEVICE)
 
@@ -149,7 +150,7 @@ def load_parameters(path, verbose = True):
         print(f"Sigma: {SIGMA}")
         print()
 
-    return SAMPLE_BITSTRING_DIMENSION, MODE_DATASET, DEVICE, EPOCHS, LOSS, MODE, BOND_DIMENSION, SIGMA
+    return SAMPLE_BITSTRING_DIMENSION, MODE_DATASET, EPOCHS, LOSS, MODE, BOND_DIMENSION, SIGMA, FIDELITY
 
 def A(n,l):
     """

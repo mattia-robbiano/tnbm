@@ -50,16 +50,15 @@ def builder_mps_dataset(dimension, training_dataset, hyper = True):
     - When hyper is True, the dataset is converted into a hyperindexed tensor network.
     - When hyper is False, the dataset is converted into a list of MPS.
     """
-    if training_dataset == "cardinality":
-        dataset = get_cardinality(dimension, 200, int(dimension/2) - 1)
+    if training_dataset not in ["cardinality", "BS"]:
+        raise ValueError(f"Dataset not available in defaults: {training_dataset}")
 
-    elif training_dataset == "BS":
+    if training_dataset == "cardinality":
+        dataset = get_cardinality(dimension, 200, int(dimension / 2) - 1)
+    else:  # training_dataset == "BS"
+        if not math.isqrt(dimension) ** 2 == dimension:
+            raise ValueError("Bitstring samples dimension must be a perfect square!")
         dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
-        if math.sqrt(dimension).is_integer() == False:
-            raise ValueError("bitstring samples dimension must be a perfect square!")
-        
-    else:
-        raise ValueError("dataset not available in defaults: " + training_dataset)
     
     if hyper:
         """ In this case the dataset is a list of hyperindexed quimb tensor networks.
@@ -79,7 +78,8 @@ def builder_mps_dataset(dimension, training_dataset, hyper = True):
             x = x/x.norm()
     
     else:
-        """ In this case the dataset is a list of bitstrings, we will convert it to a list of MPS
+        """ 
+        TODO DELETE WHEN HYPERINDEXED TENSOR NETWORK IS WORKING FOR KLD
         """
         tensor_network_dataset = []
         for data in dataset:
@@ -171,7 +171,7 @@ def main():
 
     if mode == "training":
 
-        training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset, hyper=True)
+        training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset)
 
         psi = qtn.MPS_rand_state(sample_bitstring_dimension, bond_dim=bond_dimension)
         for i, tensor in enumerate(psi):
@@ -181,12 +181,6 @@ def main():
         kernel = builder_mpo_loss(method= loss, sigma= sigma, dimension= 
         sample_bitstring_dimension)
         
-        # for i in range(training_tensor_network.ind_size('hyper')):
-        #     x = training_tensor_network.isel({'hyper': i})
-        #     if x.norm() != 1:
-        #         print(f"Norm of x {i} is {x.norm()}")    
-        # sys.exit()    
-
 ########### Optimization ###########
         def FidelityCallback(tnopt):
             state = tnopt.get_tn_opt()
@@ -234,7 +228,7 @@ def main():
             for b in bond_dimension_list:
                 for n in range(2, 20):
                     # Build the training set MPS with standard cardinality dataset
-                    training_tensor_network = builder_mps_dataset(dimension=n, training_dataset=mode_dataset, hyper=True)
+                    training_tensor_network = builder_mps_dataset(dimension=n, training_dataset=mode_dataset)
                     # Build the kernel MPO for the loss function
                     kernel = builder_mpo_loss(method=loss, sigma=sigma, dimension=n)
 

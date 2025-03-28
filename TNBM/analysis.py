@@ -2,21 +2,27 @@ from postprocessing import *
 from functions import *
 from main import main
 import matplotlib.pyplot as plt
+import scienceplots
+
+plt.style.use('science')
 
 """
-PATHs:
+PATHs: 
 """
 folder = "/data/mrobbian/IC-Deq-BM/TNBM/results/"
-MODEL_mmd_bs_16q_8b = folder + "trained_model/mmd_bs_16q_8b.pkl"
-LOSS_mmd_bs_16q_8b = folder +  "trained_loss/mmd_bs_16q_8b.out"
-MODEL_dkl_bs_16q_8b = folder + "trained_model/dkl_bs_16q_8b.pkl"
-LOSS_dkl_bs_16q_8b = folder +  "trained_loss/dkl_bs_16q_8b.out"
 
-#plot_BS(MODEL_mmd_bs_16q_8b)
-#plot_loss(LOSS_mmd_bs_16q_8b, LOSS_mmd_bs_16q_8b)
-plot_BS(MODEL_dkl_bs_16q_8b)
-plot_loss(LOSS_dkl_bs_16q_8b, LOSS_dkl_bs_16q_8b)
+MODEL_mmd_bs_16q_8b_2000i = folder + "trained_model/mmd_bs_16q_8b_2000i.pkl"
+LOSS_mmd_bs_16q_8b_2000i  = folder +  "trained_loss/mmd_bs_16q_8b_2000i.out"
 
+MODEL_dkl_bs_16q_8b_2000i = folder + "trained_model/dkl_bs_16q_8b_2000i.pkl"
+LOSS_dkl_bs_16q_8b_2000i  = folder +  "trained_loss/dkl_bs_16q_8b_2000i.out"
+
+MODEL_dkl_bs_16q_8b_4000i = folder + "trained_model/dkl_bs_16q_8b_4000i.pkl"
+LOSS_dkl_bs_16q_8b_4000i  = folder +  "trained_loss/dkl_bs_16q_8b_4000i.out"
+
+# plot_BS(MODEL_mmd_bs_16q_8b_2000i)
+plot_loss(LOSS_mmd_bs_16q_8b_2000i, LOSS_dkl_bs_16q_8b_2000i)
+# plot_BS(MODEL_dkl_bs_16q_8b_2000i)
 
 # bond_dim = [2, 100, 600]
 # filename = "variance_results.txt"

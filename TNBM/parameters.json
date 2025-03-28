@@ -2,9 +2,10 @@
     "SAMPLE_BITSTRING_DIMENSION": 16,
     "MODE_DATASET": "BS",
     "DEVICE": "gpu",
-    "EPOCHS": 4000,
+    "EPOCHS": 2000,
     "LOSS": "dkl",
     "MODE": "training",
     "BOND_DIMENSION": 8,
-    "SIGMA": 0.09
+    "SIGMA": 0.09,
+    "FIDELITY": false
 }
