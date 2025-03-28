@@ -113,7 +113,7 @@ def loss_fn(psi, training_tensor_network, kernel, method):
       the training data, where the loss is reconducted to the sum of the logs of the inner products between the psi
       state and the data states. Basically a Fidelity loss.
     """
-    n = psi.L
+    n = psi.L 
     
     if method == "mmd":
         psi_copy = psi.copy()
