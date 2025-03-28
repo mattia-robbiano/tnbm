@@ -1,3 +1,9 @@
+"""FIXING SHAPES
+- in get_BS(n) la n è la dimensione del lato dell'immagine, quindi il numero di qubit è n**2
+"""
+
+
+
 import sys
 import pickle
 import numpy as np
@@ -8,28 +14,33 @@ from jax import config
 jax.config.update("jax_enable_x64", True)
 
 # TODO Parameters to be loaded from a json file
-plot_opt = True
-savetn_opt = True
+plot_opt = False
 
 def builder_mpo_loss(method, sigma, dimension):
     """ Define kernel MPO, all tensors are 2x2 matrices node_matrix, depending on the loss function user wants  to use
     """
-    if method == 'lqf':
-            node_matrix = np.array([[1, 0], [0, (dimension-1)/dimension]])
-            node_matrix /= np.linalg.norm(node_matrix)
-    elif method == 'mmd':
-            node_matrix = np.array([[1, np.exp(-(1/(2*sigma**2)))], [np.exp(-(1/(2*sigma**2))), 1]])
-            node_matrix /= np.linalg.norm(node_matrix)
-    elif method == 'dkl':
-        node_matrix = np.array([[1, 0], [0, 1]])
+    if method == 'lqf': node_matrix = np.array([[1, 0], [0, (dimension-1)/dimension]])
+    elif method == 'mmd': node_matrix = np.array([[1, np.exp(-(1/(2*sigma**2)))], [np.exp(-(1/(2*sigma**2))), 1]])
+    elif method == 'dkl': node_matrix = np.array([[1, 0], [0, 1]])
+    else: raise ValueError("loss function not available: " + method)
+    node_matrix = node_matrix.astype(float)
+    node_matrix /= np.linalg.norm(node_matrix)
     
     tensors = [qtn.Tensor(data=node_matrix, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(dimension)]
     mpo = qtn.TensorNetwork(tensors)
 
     return mpo
     
-def builder_mps_dataset(dimension, training_dataset, hyper = True):
-    """Build the dataset as a list of Matrix Product States (MPS) or as a hyperindexed tensor network.
+def builder_mps_dataset(dimension, training_dataset):
+    """Build the dataset as a list of Matrix Product States (MPS) or as a hyperindexed
+    tensor network.The dataset is a list of hyperindexed quimb tensor networks.
+    create a hyperindexed representation of training set as a quimb tensor network
+    keep in mind that [0,1] means measuring |0> and |1> on the two qubits. The elements of computational basis
+    can be represented by vectors (0,1) and (1,0) respectively.
+    The training set is represented by an MPO. Each node represent all the qubit measurement as a matrix.
+    Each row of the matrix is single mesurements of the qubit in computational basis (0,1) or (1,0)
+    We will have as many rows as the number of data points in the training set.
+
 
     Parameters:
     dimension (int): The dimension of the dataset.
@@ -50,43 +61,18 @@ def builder_mps_dataset(dimension, training_dataset, hyper = True):
     - When hyper is True, the dataset is converted into a hyperindexed tensor network.
     - When hyper is False, the dataset is converted into a list of MPS.
     """
-    if training_dataset not in ["cardinality", "BS"]:
-        raise ValueError(f"Dataset not available in defaults: {training_dataset}")
-
-    if training_dataset == "cardinality":
-        dataset = get_cardinality(dimension, 200, int(dimension / 2) - 1)
-    else:  # training_dataset == "BS"
-        if not math.isqrt(dimension) ** 2 == dimension:
-            raise ValueError("Bitstring samples dimension must be a perfect square!")
-        dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
+    if training_dataset not in ["cardinality", "BS"]: raise ValueError(f"Dataset not available in defaults")
+    if training_dataset == "cardinality": dataset = get_cardinality(dimension, 200, int(dimension / 2) - 1)
+    else: dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
     
-    if hyper:
-        """ In this case the dataset is a list of hyperindexed quimb tensor networks.
-            create a hyperindexed representation of training set as a quimb tensor network
-            keep in mind that [0,1] means measuring |0> and |1> on the two qubits. The elements of computational basis
-            can be represented by vectors (0,1) and (1,0) respectively.
-            The training set is represented by an MPO. Each node represent all the qubit measurement as a matrix.
-            Each row of the matrix is single mesurements of the qubit in computational basis (0,1) or (1,0)
-            We will have as many rows as the number of data points in the training set.
-        """
-        measurements = [[data[i] for data in dataset] for i in range(dimension)]
-        tensor_data = [np.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
-        tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
-        tensor_network_dataset = qtn.TensorNetwork(tensors)
-        for i in range(dimension):
-            x = tensor_network_dataset.isel({'hyper': i}) 
-            x = x/x.norm()
+    measurements = [[data[i] for data in dataset] for i in range(dataset.shape[0])]
+    tensor_data = [jnp.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
+    tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
+    tensor_network_dataset = qtn.TensorNetwork(tensors)
+    for i in range(dimension):
+        x = tensor_network_dataset.isel({'hyper': i}) 
+        x = x/x.norm() # normalize each tensor network corresponding to a data point
     
-    else:
-        """ 
-        TODO DELETE WHEN HYPERINDEXED TENSOR NETWORK IS WORKING FOR KLD
-        """
-        tensor_network_dataset = []
-        for data in dataset:
-            state = qtn.MPS_computational_state(data)
-            state /= state.norm()
-            tensor_network_dataset.append(state)
-
     return tensor_network_dataset
 
 def loss_fn(psi, training_tensor_network, kernel, method):
@@ -113,33 +99,31 @@ def loss_fn(psi, training_tensor_network, kernel, method):
       the training data, where the loss is reconducted to the sum of the logs of the inner products between the psi
       state and the data states. Basically a Fidelity loss.
     """
-    n = psi.L 
-    
     if method == "mmd":
-        psi_copy = psi.copy()
-        rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-        psi_copy.reindex_(rename_dict)
-
-        training_tensor_network_copy = training_tensor_network.copy()
-        rename_dict = {f'k{i}': f'cbase{i}' for i in range(n)}
-        training_tensor_network_copy.reindex_(rename_dict)
+        rename_dict = {f'k{i}': f'cbase{i}' for i in range(psi.L)}
+        psi_copy = psi.copy().reindex_(rename_dict)
+        training_tensor_network_copy = training_tensor_network.copy().reindex_(rename_dict)
 
         mix_term = (psi & kernel & training_tensor_network).contract(output_inds = [], optimize = 'auto-hq')
         homogeneous_term_q = (psi & kernel & psi_copy).contract(output_inds = [], optimize = 'auto-hq')
         homogeneous_term_p = (training_tensor_network & kernel & training_tensor_network_copy).contract(output_inds = [], optimize = 'auto-hq')
         loss_value = homogeneous_term_q -2*mix_term  + homogeneous_term_p
 
+# TODO need to pass a probability vector for px based on dataset statistics to be calculated in main for not BS dataset.
     elif method == "dkl":
         loss_value = 0
+        rename_dict = {f'k{i}': f'cbase{i}' for i in range(psi.L)}
+        psi.reindex_(rename_dict)
+
         for i in range(training_tensor_network.ind_size('hyper')):
-            x = training_tensor_network.isel({'hyper': i}).copy()
-            qx = abs((psi & x).contract(output_inds = [], optimize = 'auto-hq'))**2+ 10**-8
-            px = 1/training_tensor_network.ind_size('hyper')+ 10**-8
+            x = training_tensor_network.isel({'hyper': i})
+            qx = abs((psi & x).contract(output_inds = [], optimize = 'auto-hq'))**2
+            px = 1/training_tensor_network.ind_size('hyper')
             loss_value += px*jnp.log(px/qx)
+
         loss_value = loss_value
             
-    else:
-        raise ValueError("loss function not available: "+method)
+    else: raise ValueError("loss function not available: " + method)
 
     return loss_value
 
@@ -170,57 +154,39 @@ def main():
     sample_bitstring_dimension, mode_dataset, epochs, loss, mode, bond_dimension, sigma, fidelity_opt  = load_parameters("parameters.json", verbose = False)
 
     if mode == "training":
-
         training_tensor_network = builder_mps_dataset(dimension = sample_bitstring_dimension, training_dataset=mode_dataset)
-
         psi = qtn.MPS_rand_state(sample_bitstring_dimension, bond_dim=bond_dimension)
-        for i, tensor in enumerate(psi):
-            tensor.add_tag(f'psi{i}')
+        for i, tensor in enumerate(psi): tensor.add_tag(f'psi{i}')
         psi /= psi.norm()
-
         kernel = builder_mpo_loss(method= loss, sigma= sigma, dimension= 
         sample_bitstring_dimension)
-        
-########### Optimization ###########
-        def FidelityCallback(tnopt):
-            state = tnopt.get_tn_opt()
-            fidelity_test = loss_fn(state, training_tensor_network, kernel, method='dkl')
-            with open('fidelity_test.txt', 'a') as f:
-                f.write(f"Fidelity test: {fidelity_test}\n")
+                
+        def callback_val(tnopt):
+            state = tnopt.get_tn_opt().copy()
+            rename_dict = {f'k{i}': f'cbase{i}' for i in range(psi.L)}
+            state.reindex_(rename_dict)
+            normalization = training_tensor_network.ind_size('hyper')
+            with open('fidelity.out', 'a') as f:
+                result = (state & training_tensor_network).contract(output_inds=[], optimize='auto-hq')/normalization
+                f.write(f"{result}\n")
 
         tnopt = qtn.TNOptimizer(
-            # the tensor network we want to optimize
             tn = psi,
-            # the functions specfying the loss and normalization
             loss_fn=loss_fn,
             norm_fn=norm_fn,
-            # we specify constants so that the arguments can be converted
-            # to the  desired autodiff backend automatically
             loss_constants={"training_tensor_network": training_tensor_network, "kernel": kernel},
-            # options
             loss_kwargs={"method": loss},
-            # the underlying algorithm to use for the optimization
-            # 'l-bfgs-b' is the default and often good for fast initial progress
             optimizer="adam",
-            # which gradient computation backend to use
             autodiff_backend="jax",
-            # callback function to execute after every optimization step
-            callback=FidelityCallback if fidelity_opt == True else None,
+            callback=callback_val if fidelity_opt == True else None,
         )
-
         psi_opt = tnopt.optimize(epochs)
         
-        print(psi_opt.norm())
-        print()
-
-        if plot_opt == True:
-            fig, ax = tnopt.plot()
-            fig.patch.set_facecolor('white')
-            ax.set_facecolor('white')
-            fig.savefig("plot.png", facecolor='white')
-
-        with open('tensor_network.pkl', 'wb') as f:
-            pickle.dump(psi_opt, f)
+        fig, ax = tnopt.plot()
+        fig.patch.set_facecolor('white')
+        ax.set_facecolor('white')
+        if plot_opt == True: fig.savefig("plot.png", facecolor='white')
+        with open('tensor_network.pkl', 'wb') as f: pickle.dump(psi_opt, f)
 
     elif mode == "variance":
         with open('variance_results.txt', 'a') as f:
