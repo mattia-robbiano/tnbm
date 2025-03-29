@@ -8,23 +8,12 @@ import matplotlib.pyplot as plt
 import scienceplots
 plt.style.use("science")
 
-from main import loss_fn, builder_mpo_loss, builder_mps_dataset
-
 # Set this number according to the LaTeX
 WIDTH = 1
 
-def plot_BS(PATH, num_images=10, num_columns = 5):
+def plot_BS(PATH, loss_function, dataset, num_qubits, bond_dimension, iterations, num_images=10, num_columns = 5):
     
     seed = int(time.time())
-
-    # Extract model information from the PATH
-    filename = PATH.split('/')[-1]
-    parts = filename.split('_')
-    loss_function = parts[0]
-    dataset = parts[1]
-    num_qubits = float(parts[2].replace('q', ''))
-    bond_dimension = int(parts[3].replace('b', ''))
-    iterations = int(parts[4].replace('i.pkl', ''))
 
     with open(PATH, 'rb') as f:
         tn = pickle.load(f) 
@@ -193,7 +182,7 @@ def loss(tn = None):
     loss = loss_fn(psi=tn, training_tensor_network=data, kernel=mpo)
     return loss 
 
-def main():
+def boh():
 
     """
     PATHs: 
@@ -210,8 +199,5 @@ def main():
     LOSS_dkl_bs_16q_8b_4000i  = folder +  "trained_loss/dkl_bs_16q_8b_4000i.out"
 
     # plot_BS(MODEL_mmd_bs_16q_8b_2000i)
-    plot_loss(LOSS_dkl_bs_16q_8b_2000i, "/data/mrobbian/IC-Deq-BM/TNBM/dkl_fd_16q_8b_2000i.out", justprint=True)
-    # plot_BS(MODEL_dkl_bs_16q_8b_2000i)
-
-if __name__ == "__main__":
-    main()
+    #plot_loss(LOSS_dkl_bs_16q_8b_2000i, "/data/mrobbian/IC-Deq-BM/TNBM/dkl_fd_16q_8b_2000i.out", justprint=True)
+    plot_BS(MODEL_dkl_bs_16q_8b_2000i)
