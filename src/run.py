@@ -15,6 +15,7 @@ from tn_core import builder_mps_dataset, builder_mpo_loss
 import os
 
 plot_opt = False
+print_model = False
 
 def write_to_file(filename: str, value: Any) -> None:
     """Write a value to a file, overwriting if the file already exists."""
@@ -45,24 +46,36 @@ def run_training(bond_dimension,
         if os.path.exists(filename):
             os.remove(filename)
 
-    dataset, nquibit = dataset_mode
+    dataset, nqubit = dataset_mode
 
-    training_tensor_network = builder_mps_dataset(dimension = nquibit, training_dataset=dataset)
+    training_tensor_network = builder_mps_dataset(dimension = nqubit, training_dataset=dataset)
 
-    model = qtn.MPS_rand_state(nquibit, bond_dim=bond_dimension)
+    model = qtn.MPS_rand_state(nqubit, bond_dim=bond_dimension)
     for i, tensor in enumerate(model): tensor.add_tag(f'model{i}')
     model /= model.norm()
 
     node_kernel = jnp.array([[1, jnp.exp(-1/(2*sigma**2))], [jnp.exp(-1/(2*sigma**2)), 1]], dtype=float)
-    node_kernel /= jnp.linalg.norm(node_kernel)
-    tensors_kernel = [qtn.Tensor(data=node_kernel, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(nquibit)]
+    #node_kernel /= jnp.linalg.norm(node_kernel)
+    tensors_kernel = [qtn.Tensor(data=node_kernel, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(nqubit)]
     kernel = qtn.TensorNetwork(tensors_kernel)
-            
+
+    if print_model == True:
+        rename_dict = {f'k{i}': f'cbase{i}' for i in range(model.L)}
+        model.reindex_(rename_dict)
+        print(model)
+        print()
+        print(training_tensor_network)
+        print()
+        fig = (model & training_tensor_network).draw(return_fig=True,)
+        fig.patch.set_facecolor('white')
+        fig.savefig('model_kernel_plot.pdf', facecolor='white')
+        sys.exit()
+
     def callback_val(tnopt: Any) -> None:
         """Callback function to log optimization metrics."""
         
         state = tnopt.get_tn_opt().copy()
-        state.reindex_({f'k{i}': f'cbase{i}' for i in range(nquibit)})
+        state.reindex_({f'k{i}': f'cbase{i}' for i in range(nqubit)})
 
         write_to_file('loss.out', tnopt.loss)
 

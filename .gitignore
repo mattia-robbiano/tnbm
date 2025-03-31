@@ -1,7 +1,2 @@
-# Ignoring all emacs autosaves
-*#
-*~
-*#*
 __pycache__/
-
-todo.txt
+run/
