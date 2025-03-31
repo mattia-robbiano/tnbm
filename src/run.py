@@ -12,11 +12,12 @@ import quimb.tensor as qtn
 
 from metrics import MMD, KLD
 from tn_core import builder_mps_dataset, builder_mpo_loss
+import os
 
 plot_opt = False
 
 def write_to_file(filename: str, value: Any) -> None:
-    """Append a value to a file."""
+    """Write a value to a file, overwriting if the file already exists."""
     with open(filename, 'a') as file:
         file.write(f"{value}\n")
 
@@ -26,7 +27,7 @@ def norm_fn(psi):
 
 def run_training(bond_dimension, 
                  loss_fn, 
-                 dataset_mode, epochs, callback_metrics: list[str], sigma=1):
+                 dataset_mode, epochs, callback_metrics: list[str], sigma=0.09):
     """
     Run the training process for the tensor network optimizer.
     Parameters:
@@ -39,6 +40,10 @@ def run_training(bond_dimension,
     epochs (int): Number of epochs for training.
     callback_metrics (list[str]): List of metrics to be used in the callback.
     """
+
+    for filename in ['loss.out', 'fidelity.out', 'mmd.out', 'kld.out']:
+        if os.path.exists(filename):
+            os.remove(filename)
 
     dataset, nquibit = dataset_mode
 
@@ -88,7 +93,7 @@ def run_training(bond_dimension,
     fig, ax = tnopt.plot()
     fig.patch.set_facecolor('white')
     ax.set_facecolor('white')
-    fig.savefig('plot.png', facecolor='white')
+    fig.savefig('plot.pdf', facecolor='white')
     with open('tensor_network.pkl', 'wb') as f: pickle.dump(psi_opt, f)
 
 """

@@ -20,12 +20,10 @@ def KLD(psi, training_tensor_network, kernel):
     rename_dict = {f'k{i}': f'cbase{i}' for i in range(psi.L)}
     psi.reindex_(rename_dict)
 
-    for i in range(training_tensor_network.ind_size('hyper')):
-        x = training_tensor_network.isel({'hyper': i})
-        qx = abs((psi & x).contract(output_inds = [], optimize = 'auto-hq'))**2
-        px = 1/training_tensor_network.ind_size('hyper')
-        loss_value += px*jnp.log(px/qx)
-    loss_value = loss_value / training_tensor_network.ind_size('hyper')    
+    ampl = (psi & training_tensor_network).contract(output_inds = ['hyper'], optimize = 'auto-hq').data
+    qx = jnp.abs(ampl)**2
+    px = 1/training_tensor_network.ind_size('hyper')
+    loss_value = jnp.sum(px*jnp.log(px / qx),0)    
     
     return loss_value
 
