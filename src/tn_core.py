@@ -54,9 +54,11 @@ def builder_mps_dataset(dimension, training_dataset):
     if training_dataset == "cardinality": dataset = get_cardinality(dimension, 200, int(dimension / 2) - 1)
     else: dataset = get_bars_and_stripes(int(np.sqrt(dimension)))
     
-    measurements = [[data[i] for data in dataset] for i in range(dataset.shape[0])]
-    tensor_data = [jnp.array([[1, 0] if m == 0 else [0, 1] for m in meas]) for meas in measurements]
-    tensors = [qtn.Tensor(data=tensor_data[i], inds=('hyper', f'cbase{i}'), tags=f'sample{i}') for i in range(dimension)]
+    # TODO \refactor: in synthetic dataset direcly build in tensor data format to avoid multiple conversion.
+    tensors = []
+    for i in range(dimension):
+        tensor_data = jnp.array([[1, 0] if data[i] == 0 else [0, 1] for data in dataset])
+        tensors.append(qtn.Tensor(data=tensor_data, inds=('hyper', f'cbase{i}'), tags=f'sample{i}'))
     tensor_network_dataset = qtn.TensorNetwork(tensors)
     for i in range(dimension):
         x = tensor_network_dataset.isel({'hyper': i}) 
