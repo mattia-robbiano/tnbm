@@ -2,6 +2,7 @@ import sys
 import pickle
 import numpy as np
 from typing import Any
+from tqdm import tqdm
 
 import jax
 import jax.numpy as jnp
@@ -26,9 +27,7 @@ def norm_fn(psi):
     psi /= psi.norm()
     return psi
 
-def run_training(bond_dimension, 
-                 loss_fn, 
-                 dataset_mode, epochs, callback_metrics: list[str], sigma=0.09):
+def run_training(bond_dimension, loss_fn, dataset_mode, epochs, callback_metrics: list[str], sigma=0.09):
     """
     Run the training process for the tensor network optimizer.
     Parameters:
@@ -55,7 +54,7 @@ def run_training(bond_dimension,
     model /= model.norm()
 
     node_kernel = jnp.array([[1, jnp.exp(-1/(2*sigma**2))], [jnp.exp(-1/(2*sigma**2)), 1]], dtype=float)
-    #node_kernel /= jnp.linalg.norm(node_kernel)
+    node_kernel /= jnp.linalg.norm(node_kernel)
     tensors_kernel = [qtn.Tensor(data=node_kernel, inds=(f'cbase{i}', f'k{i}'), tags=f'kernel{i}') for i in range(nqubit)]
     kernel = qtn.TensorNetwork(tensors_kernel)
 
@@ -109,31 +108,69 @@ def run_training(bond_dimension,
     fig.savefig('plot.pdf', facecolor='white')
     with open('tensor_network.pkl', 'wb') as f: pickle.dump(psi_opt, f)
 
-"""
-TODO: to be fixed
+def compute_variance(bond_dim, dimension, loss_fn, training_tensor_network, kernel, iterations=100):
+    """
+    Compute the variance of loss values for a given bond dimension and dimension.
 
+    This function generates a random Matrix Product State (MPS) with a specified 
+    bond dimension and dimension, computes the loss values using the provided 
+    loss function, and calculates the variance of these loss values over a 
+    specified number of iterations.
 
-def run_variance():
-        with open('variance_results.txt', 'a') as f:
-            bond_dimension_list = [2, 100, 600]
-            for b in bond_dimension_list:
-                for n in range(2, 20):
-                    # Build the training set MPS with standard cardinality dataset
-                    training_tensor_network = builder_mps_dataset(dimension=n, training_dataset=mode_dataset)
-                    # Build the kernel MPO for the loss function
-                    kernel = builder_mpo_loss(method=loss, sigma=sigma, dimension=n)
+    Args:
+        bond_dim (int): The bond dimension of the MPS.
+        dimension (int): The physical dimension of the MPS.
+        loss_fn (Callable): A function that computes the loss given an MPS, 
+            a training tensor network, and a kernel.
+        training_tensor_network (Any): The training tensor network used in the 
+            loss computation.
+        kernel (Any): The kernel used in the loss computation.
+        iterations (int, optional): The number of iterations to compute the 
+            loss values. Defaults to 100.
 
-                    # Initialize the dataset state for n qubits, sample the psi state at random,
-                    # and compute the variance of the loss function
-                    loss_values = []
-                    for k in range(100):
-                        psi = qtn.MPS_rand_state(n, bond_dim=b, dist='uniform')
-                        for i, tensor in enumerate(psi):
-                            tensor.add_tag(f'psi{i}')
-                        loss_values.append(loss_fn(psi, training_tensor_network, kernel, method=loss))
+    Returns:
+        jnp.ndarray: The variance of the computed loss values.
+    """
+    loss_list = []
+    for _ in range(iterations):
+        psi = qtn.MPS_rand_state(dimension, bond_dim=bond_dim, dist='uniform')
+        loss_list.append(loss_fn(psi, training_tensor_network, kernel))
+    return np.var(loss_list)
 
-                    # Compute and log the variance of the loss function for the given bond dimension and number of qubits
-                    variance = np.var(loss_values)
-                    print(f"Variance for n = {n} and bond dimension {b} is {variance}")
-                    f.write(f'Variance for n = {n} and bond dimension {b} is {variance}\n')"
-"""
+def run_variance(bond_dimension: list[int], loss_fn, dataset_mode, sigma=0.09):
+    """
+    Computes and logs the variance for different bond dimensions and qubit counts.
+    Args:
+        bond_dimension (list[int]): A list of bond dimensions to iterate over.
+        loss_fn (callable): The loss function to be used for variance computation.
+        dataset_mode (tuple): A tuple containing the dataset and its mode.
+        sigma (float, optional): The sigma value for the kernel function. Defaults to 0.09.
+    Workflow:
+        - Iterates over the provided bond dimensions.
+        - For each bond dimension, iterates over qubit counts from 2 to 19.
+        - Builds a training tensor network using the provided dataset and qubit count.
+        - Constructs a kernel using the specified method, sigma, and qubit count.
+        - Computes the variance using the bond dimension, qubit count, loss function, 
+          training tensor network, and kernel.
+        - Logs the variance to the console and writes it to an output file.
+    Output:
+        - Prints the variance for each bond dimension and qubit count.
+        - Writes the variance to a file named `variance_bond_<bond_dimension>.out`.
+    Note:
+        Ensure that the functions `builder_mps_dataset`, `builder_mpo_loss`, 
+        `compute_variance`, and `write_to_file` are defined and available in the 
+        scope where this function is used.
+    """
+    dataset, _ = dataset_mode
+    qubit_variance = []
+    for nqubit in [2**2, 3**2, 4**2, 5**2]:
+        bond_variance = []
+        training_tensor_network = builder_mps_dataset(dimension=nqubit, training_dataset=dataset)
+        kernel = builder_mpo_loss(method='mmd', sigma=sigma, dimension=nqubit)
+        for b in bond_dimension:
+            variance = compute_variance(b, nqubit, loss_fn, training_tensor_network, kernel)
+            bond_variance.append(variance)
+            print(f"Variance for bond dimension {b} and nqubit {nqubit}: {variance}")
+        qubit_variance.append(bond_variance)
+
+    np.save('variance.npy', qubit_variance)
