@@ -32,6 +32,13 @@ def bars_and_stripes(size: int, shuffle = True, max_samples = int(1e6)):
     # Tile vertically and horizontally
     bars = np.repeat(data[:, np.newaxis, :], size, axis=1)
     stripes = np.repeat(data[:, :, np.newaxis], size, axis=2)
+
+    # If we generated the whole dataset, full white and full black 
+    # images appear both in the bars and in the stripes. Removing them
+    # from one of the two so that each image appears the same number of
+    # times in the dataset.
+    if 2 ** size < max_samples:
+        bars = bars[1:len(bars)-1]
     
     # Combine them together
     bas = np.vstack([bars, stripes])
@@ -40,6 +47,40 @@ def bars_and_stripes(size: int, shuffle = True, max_samples = int(1e6)):
         np.random.shuffle(bas)
     
     return bas
+
+import numpy as np
+
+def cardinality(state_dim, training_set_dim, cardinality, seed=0):
+    """
+    Generate a dataset of binary strings with a fixed number of ones (cardinality).
+
+    Args:
+        state_dim (int): Length of each binary string.
+        training_set_dim (int): Number of samples (must be even).
+        cardinality (int): Number of ones in each binary string.
+        seed (int): Random seed for reproducibility.
+
+    Returns:
+        np.ndarray: Shuffled dataset of shape (training_set_dim, state_dim).
+    """
+    if training_set_dim % 2 != 0:
+        raise ValueError("training_set_dim must be an even number")
+    if not (0 <= cardinality <= state_dim):
+        raise ValueError("cardinality must be between 0 and state_dim")
+
+    rng = np.random.default_rng(seed)
+    dataset = []
+
+    for _ in range(training_set_dim):
+        sample = np.zeros(state_dim, dtype=int)
+        ones_indices = rng.choice(state_dim, size=cardinality, replace=False)
+        sample[ones_indices] = 1
+        dataset.append(sample)
+
+    dataset = np.stack(dataset)
+    rng.shuffle(dataset, axis=0)  # Shuffle dataset
+
+    return dataset
 
 def plot_binary_data(bas: np.ndarray):
     """Given a list of binary images, plots them all."""
@@ -54,7 +95,10 @@ def plot_binary_data(bas: np.ndarray):
     idx = 0
     for ax in axs:
         for ax_ in ax:
-            ax_.imshow(bas[idx], cmap='gray')
+            ax_.imshow(bas[idx], 
+                       cmap='gray',
+                       vmin = 0, # for binary images
+                       vmax = 1)
             idx += 1
 
     plt.xticks([])
@@ -83,3 +127,6 @@ def hypertn_from_data(data):
         tensors.append(t)
 
     return qtn.TensorNetwork(tensors)
+
+def mps_from_data(data):
+    pass
