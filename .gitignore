@@ -4,3 +4,5 @@ run/run_9q_32b_2000i_kld
 training/ctg_cache/
 *.pdf
 *.pkl
+notebooks/*.pdf
+training/qcbm_hep.py

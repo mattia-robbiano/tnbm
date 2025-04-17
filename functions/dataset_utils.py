@@ -108,12 +108,16 @@ def plot_binary_data(bas: np.ndarray):
 ######################################################################################
 # TENSOR NETWORK REPRESENTATION OF THE DATASETS
 ######################################################################################
-
-def hypertn_from_data(data):
+def hypertn_from_data(data, dataset_toy):
     """Creates a hyper tensor network representation of the given dataset of size (num_samples, num_sites)."""
 
     num_samples = data.shape[0]
-    num_sites = data.shape[1] * data.shape[2]
+    if dataset_toy == 'bas':
+        num_sites = data.shape[1] * data.shape[2]
+    elif dataset_toy == 'cardinality':
+        num_sites = data.shape[1]
+    else:
+        raise ValueError("dataset not implemented yet")
 
     # Flatten the images, and reshape to size (num_sites, num_samples)
     data = data.reshape(num_samples, num_sites).T

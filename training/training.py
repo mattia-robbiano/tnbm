@@ -1,9 +1,10 @@
-import time
+import sys
 import pickle
 import numpy as np
 import quimb.tensor as qtn
 import cotengra as ctg
-import matplotlib.pyplot as plt
+
+sys.path.append('../functions')
 from dataset_utils import bars_and_stripes, hypertn_from_data
 from loss import mmd_loss, nll_loss
 from plotting_utils import plot_BS
@@ -42,8 +43,8 @@ Building the kernel matrix product operator (MPO) for the MMD loss function.
 Each node of the MPO is a rank-2 tensor (matrix kernel_mat for gaussian kernel)
 Index o{} and op{} is used to label the output of the tensor (in this case 0 and 1 for each qubit)
 """
-sigma = 0.5
-fact = 1/(2*sigma**2)
+sigma = 1
+fact = np.exp(-1/(2*sigma**2))
 kernel_mat = np.array([[1, fact],[fact, 1]])
 kernel_mpo = qtn.MPO_product_operator([kernel_mat]*num_sites, 
                                       upper_ind_id = 'o{}', 
@@ -55,8 +56,9 @@ kernel_mpo = kernel_mpo / kernel_mpo.norm()
 Create the dataset for the training, in form of a list of bitstrings. This dataset is then converted into a hyper tensor network by hypertn_from_data function, where each value of the hyperindex labels a different datapoint.
 """
 bas = bars_and_stripes(int(np.sqrt(num_sites)), shuffle=False)
-htn_data = hypertn_from_data(bas)
-
+num_samples = bas.shape[0]
+htn_data = hypertn_from_data(data=bas, dataset_toy='bas')
+htn_data = htn_data / num_samples
 """
 Optimization through TNOptimizer class of quimb.tensor.
 """
