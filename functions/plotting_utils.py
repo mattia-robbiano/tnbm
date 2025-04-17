@@ -34,3 +34,4 @@ def plot_BS(tn, loss_function, dataset, num_qubits, bond_dimension, iterations, 
         axes[i].set_title(f'Image {i+1}')
 
     plt.savefig(filename+".pdf")
+    plt.show()

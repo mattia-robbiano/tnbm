@@ -108,18 +108,19 @@ def plot_binary_data(bas: np.ndarray):
 ######################################################################################
 # TENSOR NETWORK REPRESENTATION OF THE DATASETS
 ######################################################################################
-def hypertn_from_data(data, dataset_toy):
+def hypertn_from_data(data):
     """Creates a hyper tensor network representation of the given dataset of size (num_samples, num_sites)."""
 
     num_samples = data.shape[0]
-    if dataset_toy == 'bas':
+    rank = len(data.shape)
+    if rank == 3:
+        # bars and stripes like
         num_sites = data.shape[1] * data.shape[2]
-    elif dataset_toy == 'cardinality':
-        num_sites = data.shape[1]
     else:
-        raise ValueError("dataset not implemented yet")
+        # cardinality like
+        num_sites = data.shape[1]
 
-    # Flatten the images, and reshape to size (num_sites, num_samples)
+    # reshape in the way every row is a feature vector
     data = data.reshape(num_samples, num_sites).T
 
     tensors = []
