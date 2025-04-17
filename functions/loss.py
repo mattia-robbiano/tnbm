@@ -20,27 +20,27 @@ def mmd_loss(psi, povm_tn, kernel_mpo, htn_data, contraction_method='auto-hq'):
     model_tn = qtn.TensorNetwork([probs_tn, kernel_mpo, probs_tn.reindex(reindex_map)])
     
     reindex_map_op = {f'k{i}': f'op{i}' for i in range(num_sites)}
-    overlap_data_tn = qtn.TensorNetwork([probs_tn,kernel_mpo, htn_data.reindex(reindex_map_op)])
+    overlap_data_tn = qtn.TensorNetwork([probs_tn.H,kernel_mpo, htn_data.reindex(reindex_map_op)])
 
     """
     instead of computing this quantity, probably not even correct, we can just shift the loss function by an appropriate constant M,
     large enough so that the loss is positive, but not that much that the gradients explode.
     """
-    # reindex_map_o = {f'k{i}': f'o{i}' for i in range(num_sites)}
-    # data_tn = qtn.TensorNetwork([htn_data.reindex(reindex_map_o), kernel_mpo, htn_data.reindex(reindex_map_op)])
-    M = 1
+    reindex_map_o = {f'k{i}': f'o{i}' for i in range(num_sites)}
+    data_tn = qtn.TensorNetwork([htn_data.reindex(reindex_map_o), kernel_mpo, htn_data.reindex(reindex_map_op)])
+    hom2 = 2
 
     if contraction_method == 'opt':
         hom1 = model_tn.contract(output_inds=[], optimize=ctg_opt)
         mix = overlap_data_tn.contract(output_inds=[], optimize=ctg_opt)
         #hom2 = data_tn.contract(output_inds=[], optimize=ctg_opt)
-        return hom1.real - 2 * mix.real + M
+        return hom1.real - 2 * mix.real + hom2
             
     hom1 = model_tn.contract(output_inds=[], optimize='auto-hq')
     mix = 2 * overlap_data_tn.contract(output_inds=[], optimize='auto-hq')
     #hom2 = data_tn.contract(output_inds=[], optimize='auto-hq')
     
-    return hom1.real - 2 * mix.real + M
+    return hom1.real - 2 * mix.real + hom2
 
 def nll_loss(psi, htn_data, contraction_method='auto-hq' ):
     """
