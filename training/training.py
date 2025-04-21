@@ -3,10 +3,10 @@ import pickle
 import numpy as np
 import quimb.tensor as qtn
 
-sys.path.append('../functions')
-from dataset_utils import bars_and_stripes, hypertn_from_data
-from loss import mmd_loss, nll_loss
-from plotting_utils import plot_BS
+sys.path.append('../')
+from functions.dataset_utils import bars_and_stripes, hypertn_from_data
+from functions.loss import mmd_loss, nll_loss
+from functions.plotting_utils import plot_BS
 
 """
 Initialize the state to be optimized:
