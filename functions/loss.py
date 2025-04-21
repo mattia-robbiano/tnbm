@@ -28,17 +28,17 @@ def mmd_loss(psi, povm_tn, kernel_mpo, htn_data, contraction_method='auto-hq'):
     """
     reindex_map_o = {f'k{i}': f'o{i}' for i in range(num_sites)}
     data_tn = qtn.TensorNetwork([htn_data.reindex(reindex_map_o), kernel_mpo, htn_data.reindex(reindex_map_op)])
-    hom2 = 2
+    # hom2 = 2
 
     if contraction_method == 'opt':
         hom1 = model_tn.contract(output_inds=[], optimize=ctg_opt)
         mix = overlap_data_tn.contract(output_inds=[], optimize=ctg_opt)
-        #hom2 = data_tn.contract(output_inds=[], optimize=ctg_opt)
+        hom2 = data_tn.contract(output_inds=[], optimize=ctg_opt)
         return hom1.real - 2 * mix.real + hom2
             
     hom1 = model_tn.contract(output_inds=[], optimize='auto-hq')
     mix = 2 * overlap_data_tn.contract(output_inds=[], optimize='auto-hq')
-    #hom2 = data_tn.contract(output_inds=[], optimize='auto-hq')
+    hom2 = data_tn.contract(output_inds=[], optimize='auto-hq')
     
     return hom1.real - 2 * mix.real + hom2
 
