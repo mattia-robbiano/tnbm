@@ -1,12 +1,17 @@
 import sys
 import pickle
+from typing import Callable, Any
 import numpy as np
+import jax
 import quimb.tensor as qtn
 
 sys.path.append('../')
 from functions.dataset_utils import bars_and_stripes, hypertn_from_data
 from functions.loss import mmd_loss, nll_loss
-from functions.plotting_utils import plot_BS
+import os
+from datetime import datetime
+
+jax.config.update("jax_enable_x64", True)
 
 """
 Initialize the state to be optimized:
@@ -57,29 +62,92 @@ bas = bars_and_stripes(int(np.sqrt(num_sites)), shuffle=True)
 num_samples = bas.shape[0]
 htn_freq = hypertn_from_data(data=bas)/num_samples
 
+
 """
-Optimization through TNOptimizer class of quimb.tensor.
+Now we optimize the MPS to minimize the two objective functions, saving loss values, gradients and optimited state to log
+
+- optimize() wrapper function is defined
+- mmd optimization
+- nll optimization
 """
-tnopt = qtn.TNOptimizer(
-                    tn = psi,
-                    loss_fn=nll_loss,
-                    # loss_constants={"povm_tn":povm_tn, "kernel_mpo":kernel_mpo, "htn_data":htn_freq},
-                    loss_constants={"htn_data":htn_freq},
-                    loss_kwargs={'contraction_method':'auto-hq'},
-                    norm_fn=lambda x: x / x.norm(),
-                    autodiff_backend='jax',
-                    jit_fn=True,
-                    optimizer='adam',
-                    )
-iterations = 1000
-psi_opt = tnopt.optimize(iterations)
+
+def optimize(psi, loss_fn : Callable[...,float], loss_constants: dict, loss_kwargs: dict, iterations: int, callback : Callable [..., float]):
+    """
+    Optimize a tensor network state using a specified loss function and quimb.tensors.TNOptimizer parameters.
+    Parameters:
+        loss_fn (Callable[..., float]): The loss function to be minimized.
+        loss_constants (dict): Dictionary of constant arguments to be passed to the loss function.
+        loss_kwargs (dict): Dictionary of keyword arguments to be passed to the loss function.
+        iterations (int): Number of optimization steps to perform.
+        callback (Callable[..., float]): Callback function to be called during optimization (e.g., for logging or early stopping).
+    Returns:
+        Optimized tensor network state after the specified number of iterations.
+    """
+    tnopt = qtn.TNOptimizer(
+                        tn = psi,
+                        loss_fn = loss_fn,
+                        loss_constants= loss_constants,
+                        loss_kwargs= loss_kwargs,
+                        norm_fn=lambda x: x / x.norm(),
+                        autodiff_backend='jax',
+                        jit_fn=True,
+                        optimizer='adam',
+                        callback=callback
+                        )
+    psi_opt = tnopt.optimize(iterations)
+    return psi_opt, tnopt.losses
+
+
+""" Run optimization"""
+log_dir = f'log/{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+os.makedirs(log_dir, exist_ok=True)                         # creating log folder
+loss_kwargs={'contraction_method':'auto-hq'}                # kwargs common to both losses
+
+
+""" MMD optimization"""
+gradients = []                                              # list of gradients (MPS objects)
+def callback(tnopt : qtn.TNOptimizer):
+    if tnopt.nevals % 20 == 0:
+        tn = tnopt._tn_opt
+        grad = jax.grad(mmd_loss)(tn, povm_tn, kernel_mpo, htn_freq)
+        gradients.append(grad)
+
+loss_constants = {"povm_tn":povm_tn, "kernel_mpo":kernel_mpo, "htn_data":htn_freq}
+psi_opt, losses = optimize(psi, mmd_loss, loss_constants, loss_kwargs, 50, callback)
+
+with open(os.path.join(log_dir, 'psi_opt_mmd.pkl'), 'wb') as f:
+    pickle.dump(psi_opt, f)
+with open(os.path.join(log_dir, 'gradients_mmd.pkl'), 'wb') as f:
+    pickle.dump(gradients, f)
+with open(os.path.join(log_dir, 'losses_mmd.pkl'), 'wb') as f:
+    pickle.dump(losses, f)
+
+
+""" NLL optimization"""
+gradients = []
+def callback(tnopt : qtn.TNOptimizer):
+    if tnopt.nevals % 20 == 0:
+        tn = tnopt._tn_opt
+        grad = jax.grad(nll_loss)(tn, htn_freq)
+        gradients.append(grad)
+
+loss_constants={"htn_data":htn_freq}
+psi_opt, losses = optimize(psi, nll_loss, loss_constants, loss_kwargs, 50, callback)
+
+with open(os.path.join(log_dir, 'psi_opt_nll.pkl'), 'wb') as f:
+    pickle.dump(psi_opt, f)
+with open(os.path.join(log_dir, 'gradients_nll.pkl'), 'wb') as f:
+    pickle.dump(gradients, f)
+with open(os.path.join(log_dir, 'losses_nll.pkl'), 'wb') as f:
+    pickle.dump(losses, f)
+
 
 # Plotting the results
-fig, ax = tnopt.plot()
-fig.patch.set_facecolor('white')
-ax.set_facecolor('white')
+# fig, ax = tnopt.plot()
+# fig.patch.set_facecolor('white')
+# ax.set_facecolor('white')
 #fig.savefig('plot.pdf', facecolor='white')      
 # Save the optimized tensor network to a file for later use
-with open('tensor_network.pkl', 'wb') as f: pickle.dump(psi_opt, f)
+#with open('tensor_network.pkl', 'wb') as f: pickle.dump(psi_opt, f)
 # Sampling from the optimized tensor network and plotting the results
-plot_BS(tn= psi_opt,loss_function="nnl", dataset="Bars and Stripes", num_qubits=num_sites, bond_dimension=chi, iterations=iterations)
+# plot_BS(tn= psi_opt,loss_function="nnl", dataset="Bars and Stripes", num_qubits=num_sites, bond_dimension=chi, iterations=iterations)
